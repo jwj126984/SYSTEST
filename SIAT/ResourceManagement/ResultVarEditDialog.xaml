@@ -1,0 +1,85 @@
+<Window x:Class="SIAT.ResultVarEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SIAT"
+        mc:Ignorable="d"
+        Title="结果变量设置"
+        Width="500"
+        Height="450"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 变量名称 -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
+            <Label Content="变量名称:" Width="100" />
+            <TextBox x:Name="VarNameTextBox" Width="200" />
+        </StackPanel>
+
+        <!-- 变量单位 -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
+            <Label Content="变量单位:" Width="100" />
+            <TextBox x:Name="VarUnitTextBox" Width="200" />
+        </StackPanel>
+
+        <!-- HEX/ASCII 参数 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="10" VerticalAlignment="Center" x:Name="StartBitStackPanel">
+            <Label Content="起始位:" Width="100" />
+            <TextBox x:Name="StartBitTextBox" Width="100" />
+        </StackPanel>
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="10" VerticalAlignment="Center" x:Name="EndBitStackPanel">
+            <Label Content="末位:" Width="100" />
+            <TextBox x:Name="EndBitTextBox" Width="100" />
+        </StackPanel>
+
+        <!-- CAN 参数 -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="10" VerticalAlignment="Center" x:Name="CanIdStackPanel" Visibility="Collapsed">
+            <Label Content="CAN ID:" Width="100" />
+            <TextBox x:Name="CanIdTextBox" Width="100" />
+        </StackPanel>
+        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="10" VerticalAlignment="Center" x:Name="LengthStackPanel" Visibility="Collapsed">
+            <Label Content="长度:" Width="100" />
+            <TextBox x:Name="LengthTextBox" Width="100" />
+        </StackPanel>
+        <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="10" VerticalAlignment="Center" x:Name="EndianStackPanel" Visibility="Collapsed">
+            <Label Content="大小端:" Width="100" />
+            <ComboBox x:Name="EndianComboBox" Width="100">
+                <ComboBoxItem Content="BigEndian" Tag="BigEndian" />
+                <ComboBoxItem Content="LittleEndian" Tag="LittleEndian" />
+            </ComboBox>
+        </StackPanel>
+
+        <!-- 通用参数 -->
+        <StackPanel Grid.Row="7" Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
+            <Label Content="分辨率:" Width="100" />
+            <TextBox x:Name="ResolutionTextBox" Width="100" />
+        </StackPanel>
+        <StackPanel Grid.Row="8" Orientation="Horizontal" Margin="10" VerticalAlignment="Center">
+            <Label Content="偏移量:" Width="100" />
+            <TextBox x:Name="OffsetTextBox" Width="100" />
+        </StackPanel>
+
+        <!-- 底部按钮 -->
+        <StackPanel Grid.Row="11" Orientation="Horizontal" Margin="10" HorizontalAlignment="Right">
+            <Button x:Name="SaveButton" Content="保存" Width="80" Margin="0,0,10,0" Click="SaveButton_Click" />
+            <Button x:Name="CancelButton" Content="取消" Width="80" Click="CancelButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

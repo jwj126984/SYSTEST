@@ -1,0 +1,174 @@
+<Window x:Class="SIAT.TSET.TestSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SIAT.TSET"
+        mc:Ignorable="d"
+        Title="测试设置"
+        Height="500"
+        Width="600"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent">
+
+    <Window.Resources>
+        <!-- 主要按钮样式 -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="#0078D4"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderBrush" Value="#005A9E"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#005A9E"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#004578"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.6"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <!-- 半透明背景 -->
+        <Rectangle Fill="#AA000000" RadiusX="8" RadiusY="8"/>
+        
+        <!-- 主容器 -->
+        <Border Background="White" CornerRadius="8" Padding="20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- 标题栏 -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="0,0,0,20">
+                    <TextBlock Text="测试设置" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Button Content="×" Width="30" Height="30" FontSize="14" Cursor="Hand" 
+                            HorizontalAlignment="Right" Click="CloseButton_Click" Margin="0,0,0,0">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Width" Value="30"/>
+                                <Setter Property="Height" Value="30"/>
+                                <Setter Property="FontSize" Value="14"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#666"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="0,0,0,0"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#FF5555"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+                
+                <!-- 内容区域 -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- 启动方式选择 -->
+                        <TextBlock Text="启动方式" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                        <GroupBox BorderBrush="#E0E0E0" Margin="0,0,0,20">
+                            <StackPanel>
+                                <RadioButton x:Name="SoftwareStartRadio" Content="软件启动" Margin="5,10,5,5" FontSize="13" Checked="StartModeChanged"/>
+                                <TextBlock Text="手动点击启动按钮开始测试" Margin="25,0,5,10" FontSize="12" Foreground="#666"/>
+                                
+                                <RadioButton x:Name="BarcodeStartRadio" Content="条码启动" Margin="5,10,5,5" FontSize="13" Checked="StartModeChanged"/>
+                                <Grid Margin="25,0,5,10" HorizontalAlignment="Stretch">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="条码长度：" Margin="0,5,10,5" FontSize="12" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="BarcodeLengthTextBox" Text="10" Width="80" Margin="0,5" VerticalAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                                <TextBlock Text="当扫描的条码长度与设置值相同时，自动启动测试" Margin="25,0,5,10" FontSize="12" Foreground="#666"/>
+                                
+                                <RadioButton x:Name="ToolingStartRadio" Content="工装启动" Margin="5,10,5,5" FontSize="13" Checked="StartModeChanged"/>
+                                <Grid Margin="25,0,5,10" HorizontalAlignment="Stretch">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <TextBlock Text="通讯端口：" Margin="0,5,10,5" FontSize="12" VerticalAlignment="Center" Grid.Row="0"/>
+                                    <ComboBox x:Name="ToolingPortComboBox" Width="150" Margin="0,5" VerticalAlignment="Center" Grid.Column="1" Grid.Row="0"/>
+                                    
+                                    <TextBlock Text="波特率：" Margin="0,5,10,5" FontSize="12" VerticalAlignment="Center" Grid.Row="1"/>
+                                    <ComboBox x:Name="ToolingBaudRateComboBox" Width="150" Margin="0,5" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1">
+                                        <ComboBoxItem Content="9600"/>
+                                        <ComboBoxItem Content="19200"/>
+                                        <ComboBoxItem Content="38400" IsSelected="True"/>
+                                        <ComboBoxItem Content="57600"/>
+                                        <ComboBoxItem Content="115200"/>
+                                    </ComboBox>
+                                </Grid>
+                                <TextBlock Text="工装板会持续回传状态，收到启动命令时自动开始测试" Margin="25,0,5,10" FontSize="12" Foreground="#666"/>
+                            </StackPanel>
+                        </GroupBox>
+                        
+                        <!-- 治具卡串口设置 - 仅在工装启动时显示 -->
+                        <StackPanel x:Name="JigPortSettingsPanel">
+                            <TextBlock Text="治具卡串口设置" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <GroupBox BorderBrush="#E0E0E0" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <Grid Margin="5,10,5,10" HorizontalAlignment="Stretch">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Text="通讯端口：" Margin="0,5,10,5" FontSize="12" VerticalAlignment="Center" Grid.Row="0"/>
+                                        <ComboBox x:Name="JigPortComboBox" Width="150" Margin="0,5" VerticalAlignment="Center" Grid.Column="1" Grid.Row="0"/>
+                                        
+                                        <TextBlock Text="波特率：" Margin="0,5,10,5" FontSize="12" VerticalAlignment="Center" Grid.Row="1"/>
+                                        <ComboBox x:Name="JigBaudRateComboBox" Width="150" Margin="0,5" VerticalAlignment="Center" Grid.Column="1" Grid.Row="1">
+                                            <ComboBoxItem Content="9600"/>
+                                            <ComboBoxItem Content="19200"/>
+                                            <ComboBoxItem Content="38400" IsSelected="True"/>
+                                            <ComboBoxItem Content="57600"/>
+                                            <ComboBoxItem Content="115200"/>
+                                        </ComboBox>
+                                    </Grid>
+                                    <TextBlock Text="治具卡使用Modbus协议，地址偏移0x0100，从站地址0x01" Margin="25,0,5,10" FontSize="12" Foreground="#666"/>
+                                </StackPanel>
+                            </GroupBox>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+                
+                <!-- 按钮区域 -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button Content="确定" Width="80" Click="SaveButton_Click" Style="{StaticResource PrimaryButtonStyle}"/>
+                    <Button Content="取消" Width="80" Click="CancelButton_Click" Style="{StaticResource PrimaryButtonStyle}" Background="#6C757D"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

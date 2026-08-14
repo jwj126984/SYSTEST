@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x86</PlatformTarget>
+	<ApplicationIcon>favicon.ico</ApplicationIcon>
+	   <GenerateAssemblyInfo>false</GenerateAssemblyInfo>	  
+	<StartupObject>SIAT.App</StartupObject>	  
+	<UseWindowsForms>False</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.1" />
+    <PackageReference Include="System.Management" Version="10.0.1" />
+    <PackageReference Include="EPPlus" Version="5.8.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="CommunicationManagement\ControlCAN.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>ControlCAN.dll</Link>
+    </None>
+    <None Include="CommunicationManagement\ControlCAN.h">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>ControlCAN.h</Link>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Device\" />
+  </ItemGroup>
+
+</Project>

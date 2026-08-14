@@ -1,0 +1,11 @@
+<Application x:Class="SIAT.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:SIAT"
+             StartupUri="Login.xaml">
+    <Application.Resources>
+        <!-- 注册转换器 -->
+        <local:StatusToColorConverter x:Key="StatusToColorConverter"/>
+        <local:IndexConverter x:Key="IndexConverter"/>
+    </Application.Resources>
+</Application>

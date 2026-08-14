@@ -1,0 +1,413 @@
+<Window x:Class="SIAT.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SIAT"
+        mc:Ignorable="d"
+        Title="远聪自动测试系统" 
+        Height="550" 
+        Width="800"
+        MinHeight="500"
+        MinWidth="700"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent">
+
+    <Window.Resources>
+        <!-- 主按钮样式 -->
+        <Style x:Key="FunctionButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="110"/>
+            <Setter Property="Width" Value="180"/>
+            <Setter Property="Margin" Value="15"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="10"
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="1.05" ScaleY="1.05"/>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="border" Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.3"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.98" ScaleY="0.98"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 关闭按钮样式 -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#666666"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF5555"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 图标文本样式 -->
+        <Style x:Key="IconTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+
+        <!-- 描述文本样式 -->
+        <Style x:Key="DescriptionTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="Width" Value="150"/>
+            <Setter Property="Opacity" Value="0.9"/>
+        </Style>
+
+        <!-- 大图标样式 -->
+        <Style x:Key="LargeIconStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="36"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <!-- 时间显示样式 -->
+        <Style x:Key="TimeTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- 渐变画笔资源 -->
+        <LinearGradientBrush x:Key="TestButtonGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#3498db" Offset="0"/>
+            <GradientStop Color="#2980b9" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="InstanceButtonGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#9b59b6" Offset="0"/>
+            <GradientStop Color="#8e44ad" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="ResourceButtonGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#e67e22" Offset="0"/>
+            <GradientStop Color="#d35400" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SettingsButtonGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#e74c3c" Offset="0"/>
+            <GradientStop Color="#c0392b" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="ProjectButtonGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1abc9c" Offset="0"/>
+            <GradientStop Color="#16a085" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="DevelopmentButtonGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#f39c12" Offset="0"/>
+            <GradientStop Color="#e67e22" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="HeaderBackgroundGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#0078D4" Offset="0"/>
+            <GradientStop Color="#005A9E" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="FooterBackgroundGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#0078D4" Offset="0"/>
+            <GradientStop Color="#005A9E" Offset="1"/>
+        </LinearGradientBrush>
+    </Window.Resources>
+
+    <!-- 主窗口阴影效果 -->
+    <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="0">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20" ShadowDepth="2" Opacity="0.3"/>
+        </Border.Effect>
+
+        <Grid Background="White">
+            <!-- 主布局 -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="70"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="40"/>
+                </Grid.RowDefinitions>
+
+                <!-- 标题栏 -->
+                <Border Grid.Row="0" Background="{StaticResource HeaderBackgroundGradient}" 
+                        BorderBrush="#005A9E" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 系统图标 -->
+                        <Border Grid.Column="0" Width="50" Height="50" Margin="15,0,0,0"
+                                VerticalAlignment="Center" CornerRadius="25"
+                                Background="White">
+                            <TextBlock Text="远聪" FontSize="18" FontWeight="Bold" 
+                                       Foreground="#0078D4" HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center"/>
+                        </Border>
+
+                        <!-- 系统标题 -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="15,0,0,0">
+                            <TextBlock Text="远聪自动测试系统" 
+                                       FontSize="24" 
+                                       FontWeight="Bold"
+                                       Foreground="White"/>
+                            <TextBlock Text="YuanCong Automated Testing System" 
+                                       FontSize="11" 
+                                       Foreground="#E8F4FD"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+
+                        <!-- 右上角按钮和时间显示 -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" 
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    Margin="0,0,10,0">
+
+                            <!-- 时间显示 -->
+                            <StackPanel Margin="0,0,15,0">
+                                <TextBlock x:Name="CurrentDateText" 
+                                           Style="{StaticResource TimeTextBlockStyle}"
+                                           HorizontalAlignment="Right"
+                                           Text="2023-10-27"/>
+                                <TextBlock x:Name="CurrentTimeText" 
+                                           Style="{StaticResource TimeTextBlockStyle}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,2,0,0"
+                                           Text="14:30:45"/>
+                            </StackPanel>
+
+                            <!-- 最小化按钮 -->
+                            <Button x:Name="MinimizeButton"
+                                    Content="−" 
+                                    Style="{StaticResource CloseButtonStyle}"
+                                    Click="MinimizeButton_Click"/>
+                            
+                            <!-- 最大化按钮 -->
+                            <Button x:Name="MaximizeButton"
+                                    Content="□" 
+                                    Style="{StaticResource CloseButtonStyle}"
+                                    Click="MaximizeButton_Click"/>
+                            
+                            <!-- 关闭按钮 -->
+                            <Button x:Name="CloseButton"
+                                    Content="✕" 
+                                    Style="{StaticResource CloseButtonStyle}"
+                                    Click="CloseButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 主功能区 -->
+                <Grid Grid.Row="1" Background="#F8F9FA">
+                    <!-- 背景装饰网格 -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Rectangle Grid.Column="0" Fill="#F0F7FF" Opacity="0.5"/>
+                        <Rectangle Grid.Column="1" Fill="#FFFFFF" Opacity="0.5"/>
+                    </Grid>
+
+                    <!-- 功能按钮网格 -->
+                    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 测试界面按钮 -->
+                        <Button Grid.Row="0" Grid.Column="0"
+                                x:Name="TestInterfaceButton"
+                                Style="{StaticResource FunctionButtonStyle}" 
+                                Background="{StaticResource TestButtonGradient}"
+                                BorderBrush="#2980b9"
+                                ToolTip="进入测试主界面，执行各项测试任务"
+                                Click="TestInterfaceButton_Click">
+                            <StackPanel>
+                                <TextBlock Text="🧪" Style="{StaticResource LargeIconStyle}"/>
+                                <TextBlock Text="测试界面" Style="{StaticResource IconTextBlockStyle}"/>
+                                <TextBlock Text="执行自动化测试任务" Style="{StaticResource DescriptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 实例管理按钮 -->
+                        <Button Grid.Row="0" Grid.Column="1"
+                                x:Name="InstanceManagementButton"
+                                Style="{StaticResource FunctionButtonStyle}" 
+                                Background="{StaticResource InstanceButtonGradient}"
+                                BorderBrush="#8e44ad"
+                                ToolTip="管理测试用例和配置"
+                                Click="InstanceManagementButton_Click">
+                            <StackPanel>
+                                <TextBlock Text="📁" Style="{StaticResource LargeIconStyle}"/>
+                                <TextBlock Text="用例管理" Style="{StaticResource IconTextBlockStyle}"/>
+                                <TextBlock Text="管理测试用例和配置" Style="{StaticResource DescriptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 资源管理按钮 -->
+                        <Button Grid.Row="1" Grid.Column="0"
+                                x:Name="ResourceManagementButton"
+                                Style="{StaticResource FunctionButtonStyle}" 
+                                Background="{StaticResource ResourceButtonGradient}"
+                                BorderBrush="#d35400"
+                                ToolTip="管理系统资源、数据和文件"
+                                Click="ResourceManagementButton_Click">
+                            <StackPanel>
+                                <TextBlock Text="📊" Style="{StaticResource LargeIconStyle}"/>
+                                <TextBlock Text="资源管理" Style="{StaticResource IconTextBlockStyle}"/>
+                                <TextBlock Text="管理测试资源与数据" Style="{StaticResource DescriptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 系统设置按钮 -->
+                        <Button Grid.Row="1" Grid.Column="1"
+                                x:Name="SystemSettingsButton"
+                                Style="{StaticResource FunctionButtonStyle}" 
+                                Background="{StaticResource SettingsButtonGradient}"
+                                BorderBrush="#c0392b"
+                                ToolTip="配置系统参数和选项"
+                                Click="SystemSettingsButton_Click">
+                            <StackPanel>
+                                <TextBlock Text="⚙️" Style="{StaticResource LargeIconStyle}"/>
+                                <TextBlock Text="用户管理" Style="{StaticResource IconTextBlockStyle}"/>
+                                <TextBlock Text="配置系统参数选项" Style="{StaticResource DescriptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 项目管理按钮 -->
+                        <Button Grid.Row="0" Grid.Column="2"
+                                x:Name="ProjectManagementButton"
+                                Style="{StaticResource FunctionButtonStyle}" 
+                                Background="{StaticResource ProjectButtonGradient}"
+                                BorderBrush="#16a085"
+                                ToolTip="管理测试项目"
+                                Click="ProjectManagementButton_Click">
+                            <StackPanel>
+                                <TextBlock Text="📋" Style="{StaticResource LargeIconStyle}"/>
+                                <TextBlock Text="测试项管理" Style="{StaticResource IconTextBlockStyle}"/>
+                                <TextBlock Text="管理测试项目和任务" Style="{StaticResource DescriptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 待开发按钮 -->
+                        <Button Grid.Row="1" Grid.Column="2"
+                                x:Name="DevelopmentButton"
+                                Style="{StaticResource FunctionButtonStyle}" 
+                                Background="{StaticResource DevelopmentButtonGradient}"
+                                BorderBrush="#e67e22"
+                                ToolTip="数据上传管理"
+                                Click="DevelopmentButton_Click">
+                            <StackPanel>
+                                <TextBlock Text="🔨" Style="{StaticResource LargeIconStyle}"/>
+                                <TextBlock Text="数据管理" Style="{StaticResource IconTextBlockStyle}"/>
+                                <TextBlock Text="即将上线的新功能" Style="{StaticResource DescriptionTextBlockStyle}"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- 欢迎文本 -->
+                    <TextBlock Text="欢迎使用远聪自动测试系统" 
+                               VerticalAlignment="Top" 
+                               HorizontalAlignment="Center"
+                               FontSize="18" 
+                               Foreground="#333333"
+                               Margin="0,25,0,0"
+                               FontWeight="SemiBold"/>
+                </Grid>
+
+                <!-- 底部状态栏 -->
+                <Border Grid.Row="2" Background="{StaticResource FooterBackgroundGradient}" 
+                        BorderBrush="#005A9E" BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 状态信息 -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0,0,0">
+                            <TextBlock Text="当前用户: " 
+                                       Foreground="White" 
+                                       FontSize="12"/>
+                            <TextBlock x:Name="CurrentUserText" 
+                                       Text="管理员" 
+                                       Foreground="White" 
+                                       FontSize="12"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text=" | 状态: " 
+                                       Foreground="White" 
+                                       FontSize="12"
+                                       Margin="10,0,0,0"/>
+                            <TextBlock Text="就绪" 
+                                       Foreground="White" 
+                                       FontSize="12"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+
+                        <!-- 版本信息 -->
+                        <TextBlock Grid.Column="1" Text="版本: 1.0.0 | 远聪智能科技有限公司" 
+                                   VerticalAlignment="Center" 
+                                   Margin="0,0,15,0"
+                                   Foreground="#E8F4FD" FontSize="10"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
