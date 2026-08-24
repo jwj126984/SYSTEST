@@ -365,7 +365,7 @@ namespace SIAT.Devices
 
             try
             {
-                for (int i = 1; i <= 4; i++)
+                for (int i = 1; i <= 8; i++)
                 {
                     // 设置电源模式
                     await SendDataAsync( $"OUTPut{i}:MODE 0\n");
@@ -471,7 +471,7 @@ namespace SIAT.Devices
 
             try
             {
-                for (int i = 1; i <= 4; i++)
+                for (int i = 1; i <= 8; i++)
                 {
                     await SendDataAsync( $"OUTPut{i}:ONOFF {(enable ? "1" : "0")}\n");
                     await SendDataAsync( $"OUTP{i}:ONOFF?\n");

@@ -13,6 +13,7 @@ namespace SIAT.TSET
     public class PluginStepExecutor
     {
         private readonly Dictionary<string, object> _inputParams;
+        private readonly Dictionary<string, object> _outputParams = new Dictionary<string, object>();
         private readonly object _stepProgressCallback;
         private readonly Dictionary<string, SIAT.CommunicationManagement.ICommunication> _deviceCommunications;
 
@@ -72,6 +73,9 @@ namespace SIAT.TSET
                 // 通知步骤开始
                 NotifyStepProgress(stepName, 0, "开始执行插件步骤");
 
+                // 清空输出参数，确保每次步骤执行的输出独立
+                _outputParams.Clear();
+
                 // 根据步骤名称调用对应的方法
                 var methodName = GetMethodNameFromStepName(stepName);
                 var method = GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
@@ -117,8 +121,8 @@ namespace SIAT.TSET
                 stopwatch.Stop();
                 result.Duration = stopwatch.Elapsed;
                 
-                // 设置输出值，包含_inputParams中的所有值
-                result.OutputValues = new Dictionary<string, object>(_inputParams);
+                // 设置输出值，仅包含通过SetOutputValue设置的输出参数
+                result.OutputValues = new Dictionary<string, object>(_outputParams);
 
                 // 通知步骤完成
                 NotifyStepProgress(stepName, 100, result.IsSuccess ? "执行完成" : "执行失败");
@@ -401,7 +405,7 @@ namespace SIAT.TSET
         protected void SetOutputValue(string variableName, object value)
         {
             // 记录输出值，实际输出将通过返回结果传递
-            _inputParams[variableName] = value;
+            _outputParams[variableName] = value;
         }
 
         /// <summary>
@@ -482,573 +486,6 @@ namespace SIAT.TSET
         // 方法命名规则：步骤名称转换为PascalCase后添加Step后缀
 
 
-        [InputBinding("DeviceName", "设备名称")]
-        [InputBinding("V10", "电源电压10V")]
-        [InputBinding("v10", "产品电压10V")]
-        [InputBinding("V12", "电源电压12V")]
-        [InputBinding("v12", "产品电压12V")]
-        [InputBinding("V14", "电源电压14V")]
-        [InputBinding("v14", "产品电压14V")]
-        [OutputBinding("READK", "读取K")]
-        [OutputBinding("READB", "读取B")]
-        public async Task<TestStepResult> 电流标定Step()
-        {
-            List<(double, double)> currS1 = new List<(double, double)>();
-            (double, double) a_b = (1,0);
-
-            // 从输入绑定中获取值
-            string deviceName = GetInputValue("DeviceName", "");
-            string V10 = GetInputValue("V10", "");
-            string v10 = GetInputValue("v10", "");
-
-            string V12 = GetInputValue("V12", "");
-            string v12 = GetInputValue("v12", "");
-
-            string V14 = GetInputValue("V14", "");
-            string v14 = GetInputValue("v14", "");
-
-            currS1.Add((double.Parse(v10), double.Parse(V10)));
-            currS1.Add((double.Parse(v12), double.Parse(V12)));
-            currS1.Add((double.Parse(v14), double.Parse(V14)));
-
-            //// WriteVoltage(a_b);写入K和B到设备
-
-            a_b = ((double, double))GetAAndB(currS1.Select(m => m.Item1).ToArray(), currS1.Select(m => m.Item2).ToArray());
-
-           
-
-
-            // 检查设备名称和命令是否为空
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new TestStepResult
-                {
-                    StepName = "电流标定",
-                    IsSuccess = false,
-                    ErrorMessage = "设备名称不能为空",
-                    ActualValue = "执行失败: 设备名称不能为空"
-                };
-            }
-
-            
-
-            try
-            {
-                // 检查设备是否已连接
-                if (!IsDeviceConnected(deviceName))
-                {
-                    return new TestStepResult
-                    {
-                        StepName = "电流标定",
-                        IsSuccess = false,
-                        ErrorMessage = $"设备 {deviceName} 未连接",
-                        ActualValue = $"执行失败: 设备 {deviceName} 未连接"
-                    };
-                }
-
-                float setk = (float)(a_b.Item1);
-                float setb = (float)(a_b.Item2);
-
-                List<Byte> data = new List<Byte>() { 0xFF, 0xFA, 0x00, 0x00 };
-
-                data.Add(0x03);
-
-                byte[] bytesK = BitConverter.GetBytes(setk);
-                Array.Reverse(bytesK);
-                data.AddRange(bytesK);
-
-                byte[] bytesB = BitConverter.GetBytes(setb);
-                Array.Reverse(bytesB);
-                data.AddRange(bytesB);
-                // 添加电压值（高位在前）
-
-                byte crc = CRC8Calculator.CalculateCRC8(data);
-                data.Add(crc);
-
-                data.Add(0x0A);
-                data.Add(0x0B);
-                
-                await SendDataAsync(deviceName, data.ToArray());
-                byte[] result1 = await ReceiveDataAsync(deviceName,true);
-
-                ///////////////////////////--///////////////////////////////////////////////////////
-                ///
-                double K = 0;
-                double B = 0;
-                List<Byte> data1 = new List<Byte>() { 0xFF, 0xFA, 0x00, 0x00 };
-
-                data1.Add(0x04);
-                // 添加电压值（高位在前）
-
-                byte crc1 = CRC8Calculator.CalculateCRC8(data1);
-                data1.Add(crc1);
-
-                data1.Add(0x0A);
-                data1.Add(0x0B);
-
-                await SendDataAsync(deviceName, data1.ToArray());
-                byte[] result = await ReceiveDataAsync(deviceName, true);
-
-                byte[] byteK = { result[9], result[8], result[7], result[6] };
-                byte[] byteB = { result[13], result[12], result[11], result[10] };
-
-                K = BitConverter.ToSingle(byteK, 0);
-                B = BitConverter.ToSingle(byteK, 0);
-                
-
-                // 设置输出绑定的值
-                SetOutputValue("READK", K);
-                SetOutputValue("READB", B);
-
-                return new TestStepResult
-                {
-                    StepName = "电流标定",
-                    IsSuccess = true,
-                    ActualValue = "成功",
-                    Duration = TimeSpan.FromMilliseconds(1000)
-                };
-            }
-            catch (Exception ex)
-            {
-                // 设置输出绑定的值
-                SetOutputValue("Response", "");
-                SetOutputValue("Status", "失败");
-
-                return new TestStepResult
-                {
-                    StepName = "电流标定",
-                    IsSuccess = false,
-                    ErrorMessage = ex.Message,
-                    ActualValue = $"执行失败: {ex.Message}",
-                    Duration = TimeSpan.FromMilliseconds(500)
-                };
-            }
-
-
-        }
-
-
-        [InputBinding("DeviceName", "设备名称")]
-        [OutputBinding("Result", "烧录结果")]
-        public async Task<TestStepResult> 程序烧录Step()
-        {
-            bool results = false;
-          
-            // 从输入绑定中获取值
-            string deviceName = GetInputValue("DeviceName", "");
-        
-
-            // 检查设备名称和命令是否为空
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new TestStepResult
-                {
-                    StepName = "程序烧录",
-                    IsSuccess = false,
-                    ErrorMessage = "设备名称不能为空",
-                    ActualValue = "执行失败: 设备名称不能为空"
-                };
-            }
-
-            try
-            {
-                // 检查设备是否已连接
-                if (!IsDeviceConnected(deviceName))
-                {
-                    return new TestStepResult
-                    {
-                        StepName = "程序烧录",
-                        IsSuccess = false,
-                        ErrorMessage = $"设备 {deviceName} 未连接",
-                        ActualValue = $"执行失败: 设备 {deviceName} 未连接"
-                    };
-                }
-
-
-        
-                await SendDataAsync(deviceName, "AT+CPASSWORD[12345678]");
-                string response1 = await ReceiveDataAsync(deviceName);
-
-                if (response1 != "OK") throw new Exception("烧录失败1"); // 认证失败直接退出
-                Thread.Sleep(100);
-
-
-                await SendDataAsync(deviceName, "AT+GET_STATE");
-                string response2 = await ReceiveDataAsync(deviceName);
-
-                if (response2 != "STATE[10]" && response2 != "STATE[12]") throw new Exception("烧录失败2"); // 非法状态退出
-                Thread.Sleep(100);
-
-                await SendDataAsync(deviceName, "AT+PROG[0000000000001111]");
-                string response3 = await ReceiveDataAsync(deviceName);
-
-                if (response3 != "OK") throw new Exception("烧录失败3"); // 编程指令失败退出
-                Thread.Sleep(100);
-
-
-                const int MAX_RETRIES = 20; // 最大重试次数
-                const int POLL_INTERVAL = 500; // 轮询间隔(ms)
-                int attemptCount = 0;
-                bool programmingCompleted = false;
-                while (attemptCount < MAX_RETRIES && !programmingCompleted)
-                {
-                    Thread.Sleep(POLL_INTERVAL);
-                    await SendDataAsync(deviceName, "AT+GET_STATE");
-                    string currentState = await ReceiveDataAsync(deviceName);
-
-                    if (currentState == "STATE[12]") // 编程完成状态
-                    {
-                        programmingCompleted = true;
-
-
-                        await SendDataAsync(deviceName, "AT+GET_STATE");
-                        string currentState2 = await ReceiveDataAsync(deviceName);
-                        var channelStates = ParseChannelStates(currentState2);
-                        bool[] bools = new bool[5];
-                        for (int i = 1; i < 5; i++)
-                        {
-                            if (channelStates.TryGetValue(i, out ChannelState state))
-                            {
-                                switch (state)
-                                {
-                                    case ChannelState.Success:
-                                        bools[i] = true;
-                                        break;
-                                    case ChannelState.Error:
-                                        bools[i] = false;
-                                        break;
-                                    case ChannelState.Empty:
-                                        bools[i] = false;
-                                        break;
-                                    case ChannelState.Unstart:
-                                        bools[i] = false;
-                                        break;
-                                    default:
-
-                                        break;
-                                }
-                            }
-
-
-                        }
-                        results = bools[1];
-
-                    }
-                    else
-                    {
-                        attemptCount++;
-                    }
-                }
-
-
-                // 设置输出绑定的值
-                SetOutputValue("Result", results == true ? "烧录成功" : "烧录失败");
-             
-
-                return new TestStepResult
-                {
-                    StepName = "程序烧录",
-                    IsSuccess = true,
-                    ActualValue = results == true ? "烧录成功" : "烧录失败",
-                    Duration = TimeSpan.FromMilliseconds(1000)
-                };
-            }
-            catch (Exception ex)
-            {
-                // 设置输出绑定的值
-                SetOutputValue("Response", "");
-                SetOutputValue("Status", "失败");
-
-                return new TestStepResult
-                {
-                    StepName = "程序烧录",
-                    IsSuccess = false,
-                    ErrorMessage = ex.Message,
-                    ActualValue = $"执行失败: {ex.Message}",
-                    Duration = TimeSpan.FromMilliseconds(500)
-                };
-            }
-
-
-        }
-
-        
-
-
-        [InputBinding("DeviceName", "设备名称")]
-        [OutputBinding("Result", "写入结果")]
-        public async Task<TestStepResult> SN写入Step()
-        {
-            bool results = false;
-
-            // 从输入绑定中获取值
-            string deviceName = GetInputValue("DeviceName", "");
-            string Barcode = GetInputValue("Barcode", "");
-
-            // 检查设备名称和命令是否为空
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new TestStepResult
-                {
-                    StepName = "SN写入",
-                    IsSuccess = false,
-                    ErrorMessage = "设备名称不能为空",
-                    ActualValue = "执行失败: 设备名称不能为空"
-                };
-            }
-
-            try
-            {
-                // 检查设备是否已连接
-                if (!IsDeviceConnected(deviceName))
-                {
-                    return new TestStepResult
-                    {
-                        StepName = "SN写入",
-                        IsSuccess = false,
-                        ErrorMessage = $"设备 {deviceName} 未连接",
-                        ActualValue = $"执行失败: 设备 {deviceName} 未连接"
-                    };
-                }
-
-                List<Byte> data = new List<Byte>() { 0xFF, 0xF9, 0x13, 0x00 };
-              
-                // 将Barcode转换为字节并添加到data
-                if (!string.IsNullOrEmpty(Barcode))
-                {
-                    byte[] barcodeBytes = System.Text.Encoding.ASCII.GetBytes(Barcode);
-                    data.AddRange(barcodeBytes);
-                }
-                
-                // 计算CRC8并添加
-                byte crc = CRC8Calculator.CalculateCRC8(data);
-                data.Add(crc);
-
-                data.Add(0x0A);
-                data.Add(0x0B);
-                
-                // 发送字节数据
-                await SendDataAsync(deviceName, data.ToArray());
-                string responson1 = await ReceiveDataAsync(deviceName);
-                Thread.Sleep(100);
-
-                List<Byte> data1 = new List<Byte>() { 0xFF, 0xF9, 0x13, 0x01 };
-                // 将Barcode转换为字节并添加到data
-                if (!string.IsNullOrEmpty(Barcode))
-                {
-                    byte[] barcodeBytes = System.Text.Encoding.ASCII.GetBytes(Barcode);
-                    data1.AddRange(barcodeBytes);
-                }
-
-                byte crc1 = CRC8Calculator.CalculateCRC8(data1);
-                data1.Add(crc1);
-
-                data1.Add(0x0A);
-                data1.Add(0x0B);
-
-                await SendDataAsync(deviceName, data1.ToArray());
-
-                string responson = await ReceiveDataAsync(deviceName);
-                string sn = responson.Substring(4, 15);
-                // 检查响应是否成功
-                results = sn == Barcode.Trim();
-
-                // 设置输出绑定的值
-                SetOutputValue("Result", results ? "写入成功" : "写入失败");
-
-                return new TestStepResult
-                {
-                    StepName = "SN写入",
-                    IsSuccess = results,
-                    ActualValue = results ? "写入成功" : "写入失败",
-                    Duration = TimeSpan.FromMilliseconds(1000)
-                };
-            }
-            catch (Exception ex)
-            {
-                // 设置输出绑定的值
-                SetOutputValue("Response", "");
-                SetOutputValue("Status", "失败");
-
-                return new TestStepResult
-                {
-                    StepName = "SN写入",
-                    IsSuccess = false,
-                    ErrorMessage = ex.Message,
-                    ActualValue = $"执行失败: {ex.Message}",
-                    Duration = TimeSpan.FromMilliseconds(500)
-                };
-            }
-
-
-        }
-
-
-
-        [InputBinding("DeviceName", "设备名称")]
-        [OutputBinding("Result", "编码结果")]
-        public async Task<TestStepResult> 设备编码Step()
-        {
-            
-            // 从输入绑定中获取值
-            string deviceName = GetInputValue("DeviceName", "");
-         
-
-            // 检查设备名称和命令是否为空
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new TestStepResult
-                {
-                    StepName = "设备编码",
-                    IsSuccess = false,
-                    ErrorMessage = "设备名称不能为空",
-                    ActualValue = "执行失败: 设备名称不能为空"
-                };
-            }
-
-            try
-            {
-                // 检查设备是否已连接
-                if (!IsDeviceConnected(deviceName))
-                {
-                    return new TestStepResult
-                    {
-                        StepName = "设备编码",
-                        IsSuccess = false,
-                        ErrorMessage = $"设备 {deviceName} 未连接",
-                        ActualValue = $"执行失败: 设备 {deviceName} 未连接"
-                    };
-                }
-
-                List<Byte> data = new List<Byte>() { 0xFF, 0xF0, 0x00, 0x00 };
-
-                // 计算CRC8并添加
-                byte crc = CRC8Calculator.CalculateCRC8(data);
-                data.Add(crc);
-
-                data.Add(0x0A);
-                data.Add(0x0B);
-
-                // 发送字节数据
-                await SendDataAsync(deviceName, data.ToArray());
-                byte[] result = await ReceiveDataAsync(deviceName,true);
-                
-
-                // 设置输出绑定的值
-                SetOutputValue("Result", result[3]);
-
-                return new TestStepResult
-                {
-                    StepName = "设备编码",
-                    IsSuccess = true,
-                    ActualValue = "成功",
-                    Duration = TimeSpan.FromMilliseconds(1000)
-                };
-            }
-            catch (Exception ex)
-            {
-                // 设置输出绑定的值
-                SetOutputValue("Response", "");
-                SetOutputValue("Status", "失败");
-
-                return new TestStepResult
-                {
-                    StepName = "设备编码",
-                    IsSuccess = false,
-                    ErrorMessage = ex.Message,
-                    ActualValue = $"执行失败: {ex.Message}",
-                    Duration = TimeSpan.FromMilliseconds(500)
-                };
-            }
-
-
-        }
-
-
-        [InputBinding("DeviceName", "设备名称")]
-        [OutputBinding("Volt", "读取电压")]
-        public async Task<TestStepResult> 读取电压Step()
-        {
-
-            double volt = 0;
-
-            // 从输入绑定中获取值
-            string deviceName = GetInputValue("DeviceName", "");
-
-
-            // 检查设备名称和命令是否为空
-            if (string.IsNullOrEmpty(deviceName))
-            {
-                return new TestStepResult
-                {
-                    StepName = "读取电压",
-                    IsSuccess = false,
-                    ErrorMessage = "设备名称不能为空",
-                    ActualValue = "执行失败: 设备名称不能为空"
-                };
-            }
-
-            try
-            {
-                // 检查设备是否已连接
-                if (!IsDeviceConnected(deviceName))
-                {
-                    return new TestStepResult
-                    {
-                        StepName = "读取电压",
-                        IsSuccess = false,
-                        ErrorMessage = $"设备 {deviceName} 未连接",
-                        ActualValue = $"执行失败: 设备 {deviceName} 未连接"
-                    };
-                }
-
-                List<Byte> data = new List<Byte>() { 0xFF, 0xF1, 0x00, 0x00 };
-
-                for (int j = 0; j < 128; j++)
-                {
-                    data.Add(0x00);
-                }
-
-                byte crc = CRC8Calculator.CalculateCRC8(data);
-                data.Add(crc);
-
-                data.Add(0x0A);
-                data.Add(0x0B);
-           
-                // 发送字节数据
-                await SendDataAsync(deviceName, data.ToArray());
-                byte[] result = await ReceiveDataAsync(deviceName, true);
-
-                volt = (result[4] * 256 + result[5]) / 1000.0;
-               
-                
-
-                // 设置输出绑定的值
-                SetOutputValue("Volt", volt);
-
-                return new TestStepResult
-                {
-                    StepName = "读取电压",
-                    IsSuccess = true,
-                    ActualValue = "成功",
-                    Duration = TimeSpan.FromMilliseconds(1000)
-                };
-            }
-            catch (Exception ex)
-            {
-                
-                return new TestStepResult
-                {
-                    StepName = "读取电压",
-                    IsSuccess = false,
-                    ErrorMessage = ex.Message,
-                    ActualValue = $"执行失败: {ex.Message}",
-                    Duration = TimeSpan.FromMilliseconds(500)
-                };
-            }
-        }
-
-
 
         [InputBinding("time", "延时时间(ms)")]
         public async Task<TestStepResult> 延时Step()
@@ -1082,6 +519,163 @@ namespace SIAT.TSET
                 Duration = TimeSpan.FromMilliseconds(100)
             };
         }
+
+        /// <summary>
+        /// 变量显示步骤：读取绑定变量的当前值并作为本步骤的实际值返回。
+        /// 在测试项中每添加一次该步骤，测试时就会显示该步骤当前绑定变量的当前值。
+        /// </summary>
+        [InputBinding("Variable", "绑定变量")]
+        public async Task<TestStepResult> 变量显示Step()
+        {
+            // 从输入绑定中读取所绑定变量的当前值
+            string variableValue = GetInputValue("Variable", string.Empty);
+
+            await Task.CompletedTask;
+
+            return new TestStepResult
+            {
+                StepName = "变量显示",
+                IsSuccess = true,
+                ActualValue = variableValue,
+                Duration = TimeSpan.FromMilliseconds(100)
+            };
+        }
+
+        /// <summary>
+        /// 加法步骤：计算两个值的和。输入A + 输入B，结果可通过输出绑定写回变量。
+        /// </summary>
+        [InputBinding("ValueA", "值A")]
+        [InputBinding("ValueB", "值B")]
+        [OutputBinding("Result", "计算结果")]
+        public async Task<TestStepResult> 加法Step()
+        {
+            string a = GetInputValue("ValueA", "0");
+            string b = GetInputValue("ValueB", "0");
+            double result = ParseDouble(a) + ParseDouble(b);
+            string resultStr = FormatResult(result);
+
+            SetOutputValue("Result", resultStr);
+            await Task.CompletedTask;
+
+            return new TestStepResult
+            {
+                StepName = "加法",
+                IsSuccess = true,
+                ActualValue = resultStr,
+                Duration = TimeSpan.FromMilliseconds(100)
+            };
+        }
+
+        /// <summary>
+        /// 减法步骤：计算两个值的差。输入A - 输入B，结果可通过输出绑定写回变量。
+        /// </summary>
+        [InputBinding("ValueA", "值A")]
+        [InputBinding("ValueB", "值B")]
+        [OutputBinding("Result", "计算结果")]
+        public async Task<TestStepResult> 减法Step()
+        {
+            string a = GetInputValue("ValueA", "0");
+            string b = GetInputValue("ValueB", "0");
+            double result = ParseDouble(a) - ParseDouble(b);
+            string resultStr = FormatResult(result);
+
+            SetOutputValue("Result", resultStr);
+            await Task.CompletedTask;
+
+            return new TestStepResult
+            {
+                StepName = "减法",
+                IsSuccess = true,
+                ActualValue = resultStr,
+                Duration = TimeSpan.FromMilliseconds(100)
+            };
+        }
+
+        /// <summary>
+        /// 乘法步骤：计算两个值的积。输入A × 输入B，结果可通过输出绑定写回变量。
+        /// </summary>
+        [InputBinding("ValueA", "值A")]
+        [InputBinding("ValueB", "值B")]
+        [OutputBinding("Result", "计算结果")]
+        public async Task<TestStepResult> 乘法Step()
+        {
+            string a = GetInputValue("ValueA", "0");
+            string b = GetInputValue("ValueB", "0");
+            double result = ParseDouble(a) * ParseDouble(b);
+            string resultStr = FormatResult(result);
+
+            SetOutputValue("Result", resultStr);
+            await Task.CompletedTask;
+
+            return new TestStepResult
+            {
+                StepName = "乘法",
+                IsSuccess = true,
+                ActualValue = resultStr,
+                Duration = TimeSpan.FromMilliseconds(100)
+            };
+        }
+
+        /// <summary>
+        /// 除法步骤：计算两个值的商。输入A ÷ 输入B，结果可通过输出绑定写回变量。
+        /// </summary>
+        [InputBinding("ValueA", "值A")]
+        [InputBinding("ValueB", "值B")]
+        [OutputBinding("Result", "计算结果")]
+        public async Task<TestStepResult> 除法Step()
+        {
+            string a = GetInputValue("ValueA", "0");
+            string b = GetInputValue("ValueB", "0");
+            double divisor = ParseDouble(b);
+            string resultStr;
+            if (divisor == 0)
+            {
+                resultStr = "除数为0";
+                SetOutputValue("Result", resultStr);
+                await Task.CompletedTask;
+                return new TestStepResult
+                {
+                    StepName = "除法",
+                    IsSuccess = false,
+                    ActualValue = resultStr,
+                    Duration = TimeSpan.FromMilliseconds(100)
+                };
+            }
+            double result = ParseDouble(a) / divisor;
+            resultStr = FormatResult(result);
+
+            SetOutputValue("Result", resultStr);
+            await Task.CompletedTask;
+
+            return new TestStepResult
+            {
+                StepName = "除法",
+                IsSuccess = true,
+                ActualValue = resultStr,
+                Duration = TimeSpan.FromMilliseconds(100)
+            };
+        }
+
+        /// <summary>
+        /// 将字符串安全解析为double，解析失败时返回0。
+        /// </summary>
+        private static double ParseDouble(string value)
+        {
+            return double.TryParse(value, out double result) ? result : 0;
+        }
+
+        /// <summary>
+        /// 格式化计算结果：整数时省略小数部分，否则保留必要精度。
+        /// </summary>
+        private static string FormatResult(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                return value.ToString();
+            if (Math.Abs(value - Math.Round(value)) < 1e-9)
+                return Math.Round(value).ToString("0");
+            return value.ToString("0.######");
+        }
+
         #endregion
 
 

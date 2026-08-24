@@ -446,7 +446,7 @@
                                     </Style>
                                 </TreeView.ItemContainerStyle>
                                 <TreeView.ItemTemplate>
-                                    <HierarchicalDataTemplate ItemsSource="{Binding Variables}">
+                                    <HierarchicalDataTemplate ItemsSource="{Binding DisplayVariables}">
                                         <HierarchicalDataTemplate.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="8,6">
@@ -506,25 +506,25 @@
 
                                                 <!-- 项目名称列 -->
                                                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                    <Border Width="10" 
-                                                        Height="10" 
-                                                        CornerRadius="5" 
+                                                    <Border Width="10"
+                                                        Height="10"
+                                                        CornerRadius="5"
                                                         Margin="0,0,8,0"
                                                         Background="{Binding OverallStatus, Converter={StaticResource TestStepStatusToColorConverter}}"/>
-                                                    <TextBlock Text="{Binding Name}" 
-                                                           FontSize="12.5" 
+                                                    <TextBlock Text="{Binding Name}"
+                                                           FontSize="12.5"
                                                            FontWeight="Bold"
-                                                           VerticalAlignment="Center" 
+                                                           VerticalAlignment="Center"
                                                            Foreground="#222222"/>
                                                 </StackPanel>
 
                                                 <!-- 项目耗时显示 -->
-                                                <TextBlock Grid.Column="5" 
-                                                       Text="{Binding TotalDurationSeconds, StringFormat={}{0:F3}s}" 
-                                                       FontSize="11.5" 
+                                                <TextBlock Grid.Column="5"
+                                                       Text="{Binding TotalDurationSeconds, StringFormat={}{0:F3}s}"
+                                                       FontSize="11.5"
                                                        VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center" 
-                                                       Foreground="#555555" 
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="#555555"
                                                        FontWeight="Medium"/>
                                             </Grid>
                                         </Border>

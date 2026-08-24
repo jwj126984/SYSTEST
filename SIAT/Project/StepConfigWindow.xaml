@@ -6,8 +6,8 @@
         xmlns:local="clr-namespace:SIAT"
         mc:Ignorable="d"
         Title="步骤配置"
-        Height="630"
-        Width="700"
+        Height="680"
+        Width="820"
         WindowStartupLocation="CenterOwner">
     <Window.Resources>
         <!-- 主要按钮样式 -->
@@ -65,6 +65,25 @@
             <Setter Property="Foreground" Value="#555555"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+
+        <!-- 绑定单元格模板: 支持直接填值和绑定变量切换 -->
+        <Style x:Key="BindingCellTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ValueType}" Value="DirectValue">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="BindingCellComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Visibility" Value="Visible"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ValueType}" Value="DirectValue">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Background="White">
@@ -107,22 +126,37 @@
                     <ListView x:Name="InputBindingsList" MinHeight="150" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="输入描述" Width="200">
+                                <GridViewColumn Header="输入描述" Width="180">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBox Text="{Binding InputDescription}" Padding="5,2" Width="190"/>
+                                            <TextBox Text="{Binding InputDescription}" Padding="5,2" Width="170"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="输入绑定" Width="300">
+                                <GridViewColumn Header="值类型" Width="100">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <ComboBox ItemsSource="{Binding DataContext.ProjectVariables, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" 
-                                                      SelectedItem="{Binding InputVariable}" 
-                                                      DisplayMemberPath="VariableName" 
-                                                      Width="250" 
-                                                      Margin="5,2" 
-                                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+                                            <ComboBox SelectedValue="{Binding ValueType}" Width="90" Margin="5,2"
+                                                      SelectedValuePath="Value"
+                                                      DisplayMemberPath="Text"
+                                                      Loaded="ValueTypeComboBox_Loaded"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="输入值/变量" Width="300">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <TextBox Text="{Binding DirectValue}" Padding="5,2" Width="290"
+                                                         Style="{StaticResource BindingCellTextBoxStyle}"/>
+                                                <ComboBox ItemsSource="{Binding DataContext.ProjectVariables, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                          SelectedItem="{Binding InputVariable}"
+                                                          DisplayMemberPath="VariableName"
+                                                          Width="290"
+                                                          Margin="5,2"
+                                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                          Style="{StaticResource BindingCellComboBoxStyle}"/>
+                                            </Grid>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
@@ -139,22 +173,37 @@
                     <ListView x:Name="OutputBindingsList" MinHeight="150" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <ListView.View>
                             <GridView>
-                                <GridViewColumn Header="输出描述" Width="200">
+                                <GridViewColumn Header="输出描述" Width="180">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBox Text="{Binding OutputDescription}" Padding="5,2" Width="190"/>
+                                            <TextBox Text="{Binding OutputDescription}" Padding="5,2" Width="170"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="输出绑定" Width="300">
+                                <GridViewColumn Header="值类型" Width="100">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <ComboBox ItemsSource="{Binding DataContext.ProjectVariables, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" 
-                                                      SelectedItem="{Binding OutputVariable}" 
-                                                      DisplayMemberPath="VariableName" 
-                                                      Width="250" 
-                                                      Margin="5,2" 
-                                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+                                            <ComboBox SelectedValue="{Binding ValueType}" Width="90" Margin="5,2"
+                                                      SelectedValuePath="Value"
+                                                      DisplayMemberPath="Text"
+                                                      Loaded="ValueTypeComboBox_Loaded"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="输出值/变量" Width="300">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <TextBox Text="{Binding DirectValue}" Padding="5,2" Width="290"
+                                                         Style="{StaticResource BindingCellTextBoxStyle}"/>
+                                                <ComboBox ItemsSource="{Binding DataContext.ProjectVariables, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                          SelectedItem="{Binding OutputVariable}"
+                                                          DisplayMemberPath="VariableName"
+                                                          Width="290"
+                                                          Margin="5,2"
+                                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                          Style="{StaticResource BindingCellComboBoxStyle}"/>
+                                            </Grid>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>

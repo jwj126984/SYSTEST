@@ -50,6 +50,11 @@ namespace SIAT.TSET
 
         public ObservableCollection<TestStepConfig> Steps { get; set; } = new ObservableCollection<TestStepConfig>();
         public ObservableCollection<TestVariable> Variables { get; set; } = new ObservableCollection<TestVariable>();
+        /// <summary>
+        /// 显示变量集合：仅包含"变量显示"步骤所绑定变量的当前信息（名称/合格值/实际值/单位/状态/耗时）。
+        /// 只有用户在测试项中添加了"变量显示"步骤并绑定变量时，对应变量才会出现在此处。
+        /// </summary>
+        public ObservableCollection<TestVariable> DisplayVariables { get; set; } = new ObservableCollection<TestVariable>();
 
         public int TotalSteps => Steps.Count;
         public int PassedSteps => Steps.Count(s => s.Status == TestStepStatus.Passed);
@@ -122,8 +127,37 @@ namespace SIAT.TSET
                     OutputBindings = new List<BindingItem>(step.OutputBindings)
                 };
                 Steps.Add(stepCopy);
+
+                // 若为"变量显示"步骤，根据其绑定的变量生成显示项
+                if (string.Equals(step.Name, "变量显示", StringComparison.OrdinalIgnoreCase))
+                {
+                    var binding = stepCopy.InputBindings?.FirstOrDefault(b =>
+                        string.Equals(b.Name, "Variable", StringComparison.OrdinalIgnoreCase));
+                    if (binding?.SelectedVariable != null)
+                    {
+                        var pv = binding.SelectedVariable;
+                        // 从项目变量集合中查找同名变量，获取完整的变量定义（合格值、单位等）
+                        // 项目变量集合中的 QualifiedValue/Unit 由 TestCaseProject 配置覆盖，更准确
+                        var projectVar = projectConfig.Variables.FirstOrDefault(v =>
+                            string.Equals(v.Name, pv.VariableName, StringComparison.OrdinalIgnoreCase));
+
+                        DisplayVariables.Add(new TestVariable
+                        {
+                            Name = pv.VariableName,
+                            Type = projectVar?.Type ?? pv.VariableType,
+                            Value = stepCopy.ActualValue,
+                            IsVisible = projectVar?.IsVisible ?? true,
+                            Description = projectVar?.Description ?? pv.Description,
+                            QualifiedValue = projectVar?.QualifiedValue ?? pv.QualifiedValue,
+                            Unit = projectVar?.Unit ?? pv.Unit,
+                            ActualValue = stepCopy.ActualValue,
+                            Status = stepCopy.Status,
+                            Duration = stepCopy.Duration
+                        });
+                    }
+                }
             }
-            
+
             // 深拷贝变量，确保每次测试的变量对象独立
             foreach (var variable in projectConfig.Variables)
             {

@@ -48,6 +48,7 @@ namespace SIAT.Devices
     public abstract class DeviceBase
     {
         private readonly Dictionary<string, object> _inputParams = new();
+        private readonly Dictionary<string, object> _outputParams = new();
         private CommunicationManagement.ICommunication? _communication;
         private object? _stepProgressCallback;
 
@@ -102,6 +103,9 @@ namespace SIAT.Devices
             {
                 NotifyStepProgress(stepName, 0, $"开始执行设备步骤: {stepName}");
 
+                // 清空输出参数，确保每次步骤执行的输出独立
+                _outputParams.Clear();
+
                 // 合并输入参数
                 if (inputParams != null)
                 {
@@ -141,7 +145,7 @@ namespace SIAT.Devices
 
                 stopwatch.Stop();
                 result.Duration = stopwatch.Elapsed;
-                result.OutputValues = new Dictionary<string, object>(_inputParams);
+                result.OutputValues = new Dictionary<string, object>(_outputParams);
 
                 NotifyStepProgress(stepName, 100, result.IsSuccess ? "执行完成" : "执行失败");
                 return result;
@@ -264,7 +268,7 @@ namespace SIAT.Devices
         /// </summary>
         protected void SetOutputValue(string variableName, object value)
         {
-            _inputParams[variableName] = value;
+            _outputParams[variableName] = value;
         }
 
         /// <summary>

@@ -424,6 +424,8 @@ namespace SIAT.TSET
         public bool IsBound { get; set; } = false;
         public ProjectVariable SelectedVariable { get; set; } = new ProjectVariable();
         public string Description { get; set; } = string.Empty;
+        public BindingValueType ValueType { get; set; } = BindingValueType.VariableBinding;
+        public string DirectValue { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -602,9 +604,34 @@ namespace SIAT.TSET
                                 {
                                     foreach (var inputBindingItem in stepItem.InputBindings)
                                     {
-                                        if (inputBindingItem.InputVariable != null)
+                                        // 确保NAME值正确设置，优先使用绑定项的Name属性
+                                        string bindingName = !string.IsNullOrEmpty(inputBindingItem.Name) ? inputBindingItem.Name : 
+                                            (!string.IsNullOrEmpty(inputBindingItem.InputDescription) ? inputBindingItem.InputDescription : 
+                                            (inputBindingItem.InputVariable?.VariableName ?? "未命名输入"));
+
+                                        var bindingItem = new BindingItem
                                         {
-                                            // 转换SIAT.ProjectVariable到SIAT.TSET.ProjectVariable
+                                            Name = bindingName,
+                                            ValueType = inputBindingItem.ValueType,
+                                            DirectValue = inputBindingItem.DirectValue ?? string.Empty,
+                                            Description = inputBindingItem.InputDescription
+                                        };
+
+                                        if (inputBindingItem.ValueType == BindingValueType.DirectValue)
+                                        {
+                                            // 直接值模式: 将DirectValue填入SelectedVariable.Value以便执行引擎使用
+                                            var tsetProjectVar = new ProjectVariable
+                                            {
+                                                VariableName = bindingName,
+                                                VariableType = "String",
+                                                Value = inputBindingItem.DirectValue ?? string.Empty
+                                            };
+                                            bindingItem.IsBound = true;
+                                            bindingItem.SelectedVariable = tsetProjectVar;
+                                        }
+                                        else if (inputBindingItem.InputVariable != null)
+                                        {
+                                            // 变量绑定模式
                                             var tsetProjectVar = new ProjectVariable
                                             {
                                                 VariableName = inputBindingItem.InputVariable.VariableName,
@@ -616,20 +643,11 @@ namespace SIAT.TSET
                                                 IsRange = inputBindingItem.InputVariable.IsRange,
                                                 Value = inputBindingItem.InputVariable.Value
                                             };
-
-                                            // 确保NAME值正确设置，优先使用绑定项的Name属性
-                                            string bindingName = !string.IsNullOrEmpty(inputBindingItem.Name) ? inputBindingItem.Name : 
-                                                (!string.IsNullOrEmpty(inputBindingItem.InputDescription) ? inputBindingItem.InputDescription : 
-                                                (inputBindingItem.InputVariable.VariableName ?? "未命名输入"));
-
-                                            inputBindings.Add(new BindingItem
-                                            {
-                                                Name = bindingName,
-                                                IsBound = true,
-                                                SelectedVariable = tsetProjectVar,
-                                                Description = inputBindingItem.InputDescription
-                                            });
+                                            bindingItem.IsBound = true;
+                                            bindingItem.SelectedVariable = tsetProjectVar;
                                         }
+
+                                        inputBindings.Add(bindingItem);
                                     }
                                 }
 
@@ -640,9 +658,34 @@ namespace SIAT.TSET
                                 {
                                     foreach (var outputBindingItem in stepItem.OutputBindings)
                                     {
-                                        if (outputBindingItem.OutputVariable != null)
+                                        // 确保NAME值正确设置，优先使用绑定项的Name属性
+                                        string bindingName = !string.IsNullOrEmpty(outputBindingItem.Name) ? outputBindingItem.Name : 
+                                            (!string.IsNullOrEmpty(outputBindingItem.OutputDescription) ? outputBindingItem.OutputDescription : 
+                                            (outputBindingItem.OutputVariable?.VariableName ?? "未命名输出"));
+
+                                        var bindingItem = new BindingItem
                                         {
-                                            // 转换SIAT.ProjectVariable到SIAT.TSET.ProjectVariable
+                                            Name = bindingName,
+                                            ValueType = outputBindingItem.ValueType,
+                                            DirectValue = outputBindingItem.DirectValue ?? string.Empty,
+                                            Description = outputBindingItem.OutputDescription
+                                        };
+
+                                        if (outputBindingItem.ValueType == BindingValueType.DirectValue)
+                                        {
+                                            // 直接值模式
+                                            var tsetProjectVar = new ProjectVariable
+                                            {
+                                                VariableName = bindingName,
+                                                VariableType = "String",
+                                                Value = outputBindingItem.DirectValue ?? string.Empty
+                                            };
+                                            bindingItem.IsBound = true;
+                                            bindingItem.SelectedVariable = tsetProjectVar;
+                                        }
+                                        else if (outputBindingItem.OutputVariable != null)
+                                        {
+                                            // 变量绑定模式
                                             var tsetProjectVar = new ProjectVariable
                                             {
                                                 VariableName = outputBindingItem.OutputVariable.VariableName,
@@ -654,20 +697,11 @@ namespace SIAT.TSET
                                                 IsRange = outputBindingItem.OutputVariable.IsRange,
                                                 Value = outputBindingItem.OutputVariable.Value
                                             };
-
-                                            // 确保NAME值正确设置，优先使用绑定项的Name属性
-                                            string bindingName = !string.IsNullOrEmpty(outputBindingItem.Name) ? outputBindingItem.Name : 
-                                                (!string.IsNullOrEmpty(outputBindingItem.OutputDescription) ? outputBindingItem.OutputDescription : 
-                                                (outputBindingItem.OutputVariable.VariableName ?? "未命名输出"));
-
-                                            outputBindings.Add(new BindingItem
-                                            {
-                                                Name = bindingName,
-                                                IsBound = true,
-                                                SelectedVariable = tsetProjectVar,
-                                                Description = outputBindingItem.OutputDescription
-                                            });
+                                            bindingItem.IsBound = true;
+                                            bindingItem.SelectedVariable = tsetProjectVar;
                                         }
+
+                                        outputBindings.Add(bindingItem);
                                     }
                                 }
                                 // 兼容旧的ResultVariableBindings

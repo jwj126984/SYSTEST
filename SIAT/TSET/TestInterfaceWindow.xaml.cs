@@ -74,6 +74,10 @@ namespace SIAT
         private string _currentTestCaseFilePath = string.Empty; // 保存当前测试用例文件路径
         private List<TestProjectConfig> _loadedProjects = new List<TestProjectConfig>();
 
+        // 保存变量的初始值，用于每次测试开始前重置（确保多次测试时变量值回到初始状态）
+        private readonly Dictionary<TestVariable, string> _initialVariableValues = new Dictionary<TestVariable, string>();
+        private readonly Dictionary<SIAT.TSET.ProjectVariable, string> _initialBindingVariableValues = new Dictionary<SIAT.TSET.ProjectVariable, string>();
+
         // 测试步骤集合
         private ObservableCollection<TestStepConfig> _testSteps = new ObservableCollection<TestStepConfig>();
 
@@ -711,55 +715,110 @@ namespace SIAT
         }
 
         /// <summary>
-        /// 添加测试项及其变量显示
+        /// 添加测试项到界面
         /// </summary>
         /// <param name="projectConfig">测试项目配置</param>
         /// <param name="isExpanded">是否展开显示</param>
         /// <param name="totalDuration">项目总耗时</param>
         private void AddTestItem(TestProjectConfig projectConfig, bool isExpanded = true, TimeSpan? totalDuration = null)
         {
-            // 创建视图模型
+            // 创建视图模型（步骤状态、实际值、耗时已由ExecuteTestStep在执行时更新）
             var projectViewModel = new TestProjectViewModel(projectConfig);
             projectViewModel.IsExpanded = isExpanded;
-            
-            // 使用存储的变量值更新项目变量
-            foreach (var variable in projectViewModel.Variables)
-            {
-                // 使用项目名+变量名作为键查找存储的变量值
-                string key = $"{projectConfig.Name}_{variable.Name}";
-                if (_variableValues.TryGetValue(key, out var storedVariable))
-                {
-                    // 更新变量属性，使用测试过程中更新的值
-                    UpdateVariableProperties(variable, storedVariable);
-                    
-                    // 评估变量结果
-                    EvaluateAndUpdateVariableStatus(variable);
-                }
-                else
-                {
-                    // 如果没有存储的变量值，使用变量的初始值
-                    if (!string.IsNullOrEmpty(variable.Value))
-                    {
-                        variable.ActualValue = variable.Value;
-                        variable.Status = TestStepStatus.Passed;
-                    }
-                }
-            }
-            
+
             // 添加到集合
             _testProjects.Add(projectViewModel);
-            
+
             // 设置项目总耗时（在添加到集合后设置，确保PropertyChanged事件能被UI捕获）
             if (totalDuration.HasValue)
             {
                 projectViewModel.TotalDuration = totalDuration.Value;
             }
-            
+
             // 更新UI
             OnPropertyChanged(nameof(TestProjects));
         }
 
      
+
+        /// <summary>
+        /// 将步骤输入绑定中 SelectedVariable 的属性与项目变量定义（_Variables.xml）同步。
+        /// 步骤的 InputVariable 来自 _Steps.xml，其 Value/Unit/QualifiedValue 等可能在用户
+        /// 编辑变量后变成旧数据。此方法用项目变量定义中的最新值覆盖输入绑定的 SelectedVariable，
+        /// 确保变量显示步骤读到的是变量定义中的当前初始值。
+        /// </summary>
+        private void SyncBindingVariablesFromProjectVariables()
+        {
+            foreach (var projectConfig in _loadedProjects)
+            {
+                foreach (var step in projectConfig.Steps)
+                {
+                    if (step.InputBindings == null) continue;
+                    foreach (var binding in step.InputBindings)
+                    {
+                        if (binding.SelectedVariable == null) continue;
+                        var pv = binding.SelectedVariable;
+                        var projectVar = projectConfig.Variables.FirstOrDefault(v =>
+                            string.Equals(v.Name, pv.VariableName, StringComparison.OrdinalIgnoreCase));
+                        if (projectVar != null)
+                        {
+                            pv.Value = projectVar.Value;
+                            pv.QualifiedValue = projectVar.QualifiedValue;
+                            pv.Unit = projectVar.Unit;
+                            pv.Description = projectVar.Description;
+                            pv.IsVisible = projectVar.IsVisible;
+                            pv.VariableType = projectVar.Type;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 保存所有项目变量和步骤输入绑定中变量的初始值，用于每次测试开始前重置。
+        /// </summary>
+        private void StoreInitialVariableValues()
+        {
+            _initialVariableValues.Clear();
+            _initialBindingVariableValues.Clear();
+            foreach (var projectConfig in _loadedProjects)
+            {
+                // 保存项目变量的初始值
+                foreach (var variable in projectConfig.Variables)
+                {
+                    _initialVariableValues[variable] = variable.Value;
+                }
+                // 保存步骤输入绑定中所引用变量的初始值
+                foreach (var step in projectConfig.Steps)
+                {
+                    if (step.InputBindings == null) continue;
+                    foreach (var binding in step.InputBindings)
+                    {
+                        if (binding.SelectedVariable != null)
+                        {
+                            _initialBindingVariableValues[binding.SelectedVariable] = binding.SelectedVariable.Value;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 将所有项目变量和步骤输入绑定中的变量值重置为初始值。
+        /// 在每次测试开始前调用，确保多次测试时变量值回到初始状态。
+        /// </summary>
+        private void ResetVariableValuesToInitial()
+        {
+            foreach (var kvp in _initialVariableValues)
+            {
+                kvp.Key.Value = kvp.Value;
+                kvp.Key.ActualValue = string.Empty;
+            }
+            foreach (var kvp in _initialBindingVariableValues)
+            {
+                kvp.Key.Value = kvp.Value;
+            }
+        }
 
         /// <summary>
         /// 初始化测试状态
@@ -772,17 +831,17 @@ namespace SIAT
             _currentTestStopwatch.Restart();
             _testTimer?.Start();
             _durationTimer?.Start();
-            
+
             // 清除所有显示
             _testProjects.Clear();
             OnPropertyChanged(nameof(TestProjects));
-            
-            // 清空变量值存储字典，确保每次测试都是全新的状态
-            _variableValues.Clear();
 
             // 重置测试进度
             InitializeProgressBar();
             _totalTestSteps = _loadedProjects.Sum(p => p.Steps.Count);
+
+            // 重置所有变量值为初始值，确保多次测试时变量从初始状态开始
+            ResetVariableValuesToInitial();
 
             // 重置所有项目和步骤的状态
             foreach (var projectConfig in _loadedProjects)
@@ -793,15 +852,6 @@ namespace SIAT
                     step.Status = TestStepStatus.Pending;
                     step.ActualValue = string.Empty;
                     step.Duration = TimeSpan.Zero;
-                }
-                
-                // 重置变量状态
-                foreach (var variable in projectConfig.Variables)
-                {
-                    variable.Status = TestStepStatus.Pending;
-                    variable.ActualValue = string.Empty;
-                    variable.TestTime = string.Empty;
-                    variable.Duration = TimeSpan.Zero;
                 }
             }
 
@@ -937,38 +987,24 @@ namespace SIAT
                 // 测试完成
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    // 处理测试结果，更新所有变量的状态和属性
-                    ProcessTestResults();
-                    
-                    // 检查所有变量的状态，只要有一个变量失败，整个测试就失败
-                    bool hasFailedVariables = false;
-                    foreach (var project in _testProjects)
-                    {
-                        if (project.Variables.Any(v => v.Status == TestStepStatus.Failed))
-                        {
-                            hasFailedVariables = true;
-                            break;
-                        }
-                    }
-                    
-                    // 测试通过条件：没有失败的步骤，也没有失败的变量
-                    bool testPassed = failedSteps == 0 && !hasFailedVariables;
+                    // 测试通过条件：没有失败的步骤
+                    bool testPassed = failedSteps == 0;
                     string resultText = testPassed ? "通过" : "失败";
-                    
+
                     // 计算所有项目耗时的总和，并设置为总耗时
                     TimeSpan totalDurationFromProjects = TimeSpan.Zero;
                     foreach (var project in _testProjects)
                     {
                         totalDurationFromProjects += project.TotalDuration;
                     }
-                    
+
                     // 更新总耗时为所有项目耗时的总和
                     _totalTestDuration = totalDurationFromProjects;
                     CurrentTestTotalDuration = totalDurationFromProjects;
-                    
+
                     AddLog($"测试用例执行完成 - 结果: {resultText}", testPassed ? "完成" : "失败");
                     AddLog($"测试总耗时: {_totalTestDuration.TotalSeconds:F3}s (所有项目耗时总和)", "统计");
-                    
+
                     if (StatusMessageText != null)
                         StatusMessageText.Text = $"测试完成 - {resultText}";
 
@@ -991,7 +1027,7 @@ namespace SIAT
 
                     // 停止测试
                     StopTesting();
-                    
+
                     // 显示测试结果弹窗
                     TestResultDialog resultDialog = new TestResultDialog(testPassed);
                     resultDialog.ShowDialog();
@@ -1069,7 +1105,29 @@ namespace SIAT
                 
                 // 执行测试步骤，传递项目变量的Value属性值
                 var result = await executionEngine.ExecuteStepAsync(step, variables);
-                
+
+                // 根据执行结果更新步骤状态、实际值和耗时
+                // 项目添加到界面时（AddTestItem），TestProjectViewModel会深拷贝步骤，因此此处更新step即可
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    step.Status = result.IsSuccess ? TestStepStatus.Passed : TestStepStatus.Failed;
+                    step.ActualValue = result.ActualValue;
+                    step.Duration = result.Duration;
+
+                    // 若该步骤已存在于_testProjects中，则同步更新其引用
+                    foreach (var project in _testProjects)
+                    {
+                        var stepInProjects = project.Steps.FirstOrDefault(s => s.Name == step.Name && s.Order == step.Order);
+                        if (stepInProjects != null)
+                        {
+                            stepInProjects.Status = step.Status;
+                            stepInProjects.ActualValue = step.ActualValue;
+                            stepInProjects.Duration = step.Duration;
+                            break;
+                        }
+                    }
+                });
+
                 return result;
 
             }
@@ -1218,7 +1276,15 @@ namespace SIAT
                 
                 // 重新启用工装测试流程
                 _isToolingTestFlowEnabled = true;
+                _isScanTriggered = false;
                 AddLog("测试完成，重新启用工装测试流程", "工装");
+
+                // 工装启动模式下，清空条码文本，下一轮测试需要重新扫码
+                if (_testSettings.StartMode == StartMode.Tooling && BarcodeText != null)
+                {
+                    BarcodeText.Text = string.Empty;
+                    _currentBarcode = string.Empty;
+                }
 
                 SaveLogToFile();
                 UpdateStatisticsDisplay();
@@ -1335,8 +1401,8 @@ namespace SIAT
                                 if (existingVariable != null)
                                 {
                                     existingVariable.QualifiedValue = variable.QualifiedValue ?? existingVariable.QualifiedValue;
+                                    existingVariable.Unit = variable.Unit ?? existingVariable.Unit;
                                     existingVariable.IsVisible = variable.IsVisible;
-                                    
                                 }
                                 else
                                 {
@@ -1370,6 +1436,10 @@ namespace SIAT
                 {
                     throw new Exception("未成功加载任何项目配置");
                 }
+
+                // 保存变量和输入绑定的初始值，用于每次测试开始前重置
+                SyncBindingVariablesFromProjectVariables();
+                StoreInitialVariableValues();
 
                 // 更新界面显示
                 UpdateTestCaseDisplay(filePath);
@@ -1408,6 +1478,9 @@ namespace SIAT
                 _currentTestCase = originalTestCase;
                 _loadedProjects.Clear();
                 _loadedProjects.AddRange(originalLoadedProjects);
+                // 恢复初始变量值快照
+                SyncBindingVariablesFromProjectVariables();
+                StoreInitialVariableValues();
                 _testProjects.Clear();
                 foreach (var project in originalTestProjects)
                 {
@@ -1884,75 +1957,55 @@ namespace SIAT
        
 
         /// <summary>
-        /// 更新变量显示
+        /// 更新变量值：当步骤产生输出时，通过此方法将最新值同步到项目变量及各步骤的输入绑定，
+        /// 以便后续的"变量显示"步骤能读取到所绑定变量的当前值。
         /// </summary>
         private void UpdateVariableDisplay(TestVariable variable)
         {
             try
             {
-                // 只处理项目变量，跳过结果变量
-                if (IsProjectVariable(variable))
+                bool variableUpdated = FindAndUpdateProjectVariable(variable);
+
+                if (!variableUpdated)
                 {
-                    // 在测试项目中查找并更新变量
-                    bool variableUpdated = FindAndUpdateProjectVariable(variable);
-                    
-                    if (!variableUpdated)
-                    {
-                        AddLog($"未找到项目变量: {variable.Name}", "警告");
-                    }
+                    AddLog($"未找到项目变量: {variable.Name}", "警告");
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"更新变量显示失败: {ex.Message}", "错误");
+                AddLog($"更新变量值失败: {ex.Message}", "错误");
             }
         }
-        
+
         /// <summary>
-        /// 检查是否为项目变量
-        /// </summary>
-        private bool IsProjectVariable(TestVariable variable)
-        {
-            // 项目变量是通过绑定关系从结果变量转换而来的
-            // 这里简化处理，假设所有通过HandleProjectVariableBinding方法创建的变量都是项目变量
-            // 可以根据实际情况添加更复杂的判断逻辑
-            return true;
-        }
-        
-        // 用于存储每个变量的最新值，键为变量名+项目名，值为变量对象
-        private Dictionary<string, TestVariable> _variableValues = new Dictionary<string, TestVariable>(StringComparer.OrdinalIgnoreCase);
-        
-        /// <summary>
-        /// 查找并更新项目变量
+        /// 查找并更新项目变量及步骤输入绑定中的变量值
         /// </summary>
         private bool FindAndUpdateProjectVariable(TestVariable variable)
         {
             bool variableFound = false;
-            
+
             // 为每个项目更新变量值
             foreach (var projectConfig in _loadedProjects.OrderBy(p => p.Name))
             {
-                // 检查项目中是否包含该变量
-                var existingVariable = projectConfig.Variables.FirstOrDefault(v => 
-                    string.Equals(v.Name, variable.Name, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(v.Description, variable.Description, StringComparison.OrdinalIgnoreCase));
-                
+                // 检查项目中是否包含该变量（仅按变量名匹配，避免描述为空时误匹配）
+                var existingVariable = projectConfig.Variables.FirstOrDefault(v =>
+                    string.Equals(v.Name, variable.Name, StringComparison.OrdinalIgnoreCase));
+
                 if (existingVariable != null)
                 {
                     // 更新项目变量的值
                     existingVariable.Value = variable.Value;
                     existingVariable.ActualValue = variable.ActualValue;
-                    
-                    // 同时更新该项目中所有步骤的输入绑定中引用的变量值
+
+                    // 同时更新该项目中所有步骤的输入绑定中引用的变量值（供"变量显示"步骤读取）
                     foreach (var step in projectConfig.Steps)
                     {
                         if (step.InputBindings != null)
                         {
                             foreach (var inputBinding in step.InputBindings)
                             {
-                                if (inputBinding.IsBound && inputBinding.SelectedVariable != null && 
-                                    (string.Equals(inputBinding.SelectedVariable.VariableName, variable.Name, StringComparison.OrdinalIgnoreCase) ||
-                                     string.Equals(inputBinding.SelectedVariable.Description, variable.Description, StringComparison.OrdinalIgnoreCase)))
+                                if (inputBinding.IsBound && inputBinding.SelectedVariable != null &&
+                                    string.Equals(inputBinding.SelectedVariable.VariableName, variable.Name, StringComparison.OrdinalIgnoreCase))
                                 {
                                     // 更新输入绑定中变量的值
                                     inputBinding.SelectedVariable.Value = variable.Value;
@@ -1960,47 +2013,16 @@ namespace SIAT
                             }
                         }
                     }
-                    
-                    // 使用项目名+变量名作为键，确保每个项目的变量值独立存储
-                    string key = $"{projectConfig.Name}_{variable.Name}";
-                    _variableValues[key] = variable;
+
                     variableFound = true;
                 }
             }
-            
+
             return variableFound;
         }
         
         
         
-        
-        /// <summary>
-        /// 更新变量属性
-        /// </summary>
-        private void UpdateVariableProperties(TestVariable existingVariable, TestVariable variable)
-        {
-            existingVariable.ActualValue = variable.ActualValue;
-            existingVariable.TestTime = variable.TestTime;
-            existingVariable.Duration = variable.Duration;
-            existingVariable.Type = variable.Type;
-        }
-
-        /// <summary>
-        /// 评估并更新变量状态
-        /// </summary>
-        private void EvaluateAndUpdateVariableStatus(TestVariable existingVariable)
-        {
-            existingVariable.Status = EvaluateVariableResult(existingVariable);
-            
-        }
-        
-        /// <summary>
-        /// 添加变量更新日志
-        /// </summary>
-        private void AddVariableUpdateLog(TestProjectViewModel project, TestVariable variable)
-        {
-            AddLog($"变量更新成功: {project.Name}.{variable.Name} = {variable.ActualValue} {variable.Unit} ({variable.Status})", "变量");
-        }
         
         /// <summary>
         /// 刷新UI和状态
@@ -2009,204 +2031,28 @@ namespace SIAT
         {
             // 显式刷新TreeView控件，确保UI实时更新
             TestStepsTreeView.Items.Refresh();
-            
+
             // 刷新项目状态
             project.OverallStatus = CalculateProjectStatus(project);
-            
+
             // 更新所有项目状态
             _testProjects.UpdateAllStatus();
         }
-        
+
         /// <summary>
         /// 计算项目状态
         /// </summary>
         private TestStepStatus CalculateProjectStatus(TestProjectViewModel project)
         {
-            return project.Steps.All(s => s.Status == TestStepStatus.Passed) && 
-                   project.Variables.All(v => v.Status == TestStepStatus.Passed || v.Status == TestStepStatus.Pending)
-               ? TestStepStatus.Passed : TestStepStatus.Failed;
-        }
-        
-        /// <summary>
-        /// 评估变量结果，根据实际值和合格值判断变量状态
-        /// </summary>
-        private TestStepStatus EvaluateVariableResult(TestVariable variable)
-        {
-            try
-            {
-                // 如果没有实际值或合格值，返回待处理状态
-                if (string.IsNullOrEmpty(variable.ActualValue) || string.IsNullOrEmpty(variable.QualifiedValue))
-                {
-                    return TestStepStatus.Pending;
-                }
-                
-                // 根据变量类型进行不同的结果判断
-                switch (variable.Type.ToUpper())
-                {
-                    case "INT":
-                        return EvaluateNumericResult<int>(variable.ActualValue, variable.QualifiedValue);
-                    case "DOUBLE":
-                        return EvaluateNumericResult<double>(variable.ActualValue, variable.QualifiedValue);
-                    case "BOOL":
-                        return EvaluateBooleanResult(variable.ActualValue, variable.QualifiedValue);
-                    case "STRING":
-                    default:
-                        return EvaluateStringResult(variable.ActualValue, variable.QualifiedValue);
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"评估变量结果失败: {variable.Name} - {ex.Message}", "错误");
-                return TestStepStatus.Failed;
-            }
+            if (project.Steps.Count == 0)
+                return TestStepStatus.Pending;
+            return project.Steps.All(s => s.Status == TestStepStatus.Passed)
+                ? TestStepStatus.Passed
+                : (project.Steps.Any(s => s.Status == TestStepStatus.Failed)
+                    ? TestStepStatus.Failed
+                    : TestStepStatus.Pending);
         }
 
-
-
-
-
-        /// <summary>
-        /// 处理测试结果，更新所有变量的状态和属性
-        /// </summary>
-        private void ProcessTestResults()
-        {
-            try
-            {
-                AddLog("开始处理测试结果", "结果处理");
-
-                // 遍历所有测试项目的变量
-                foreach (var project in _testProjects)
-                {
-                    foreach (var variable in project.Variables)
-                    {
-                        // 将TestVariable的_value值赋值给_actualValue属性
-                        if (!string.IsNullOrEmpty(variable.Value) && string.IsNullOrEmpty(variable.ActualValue))
-                        {
-                            variable.ActualValue = variable.Value;
-                        }
-
-                        // 比较TestVariable的_value属性与_qualifiedValue属性，更新_status属性
-                        variable.Status = EvaluateVariableResult(variable);
-
-                        // 添加日志
-                        AddLog($"处理变量结果: {project.Name}.{variable.Name} - 实际值: {variable.ActualValue}, 合格值: {variable.QualifiedValue}, 状态: {variable.Status}", "结果处理");
-                    }
-                }
-
-                // 刷新UI，确保更新后的_actualValue和_status能正确显示在用户界面上
-                TestStepsTreeView.Items.Refresh();
-                AddLog("测试结果处理完成", "结果处理");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"处理测试结果失败: {ex.Message}", "错误");
-            }
-        }
-        
-        /// <summary>
-        /// 评估数值型变量结果
-        /// </summary>
-        private TestStepStatus EvaluateNumericResult<T>(string actualValue, string qualifiedValue) where T : IComparable<T>
-        {
-            if (!TryParseValue<T>(actualValue, out T actual))
-            {
-                return TestStepStatus.Failed;
-            }
-            
-            // 支持范围判断和比较判断
-            if (qualifiedValue.Contains("-"))
-            {
-                // 范围格式：min-max
-                string[] rangeParts = qualifiedValue.Split('-');
-                if (rangeParts.Length == 2 && 
-                    TryParseValue<T>(rangeParts[0].Trim(), out T min) && 
-                    TryParseValue<T>(rangeParts[1].Trim(), out T max))
-                {
-                    return actual.CompareTo(min) >= 0 && actual.CompareTo(max) <= 0 ? TestStepStatus.Passed : TestStepStatus.Failed;
-                }
-            }
-            else if (qualifiedValue.StartsWith(">="))
-            {
-                // 大于等于格式
-                if (TryParseValue<T>(qualifiedValue.Substring(2).Trim(), out T min))
-                {
-                    return actual.CompareTo(min) >= 0 ? TestStepStatus.Passed : TestStepStatus.Failed;
-                }
-            }
-            else if (qualifiedValue.StartsWith("<="))
-            {
-                // 小于等于格式
-                if (TryParseValue<T>(qualifiedValue.Substring(2).Trim(), out T max))
-                {
-                    return actual.CompareTo(max) <= 0 ? TestStepStatus.Passed : TestStepStatus.Failed;
-                }
-            }
-            else if (qualifiedValue.StartsWith(">"))
-            {
-                // 大于格式
-                if (TryParseValue<T>(qualifiedValue.Substring(1).Trim(), out T min))
-                {
-                    return actual.CompareTo(min) > 0 ? TestStepStatus.Passed : TestStepStatus.Failed;
-                }
-            }
-            else if (qualifiedValue.StartsWith("<"))
-            {
-                // 小于格式
-                if (TryParseValue<T>(qualifiedValue.Substring(1).Trim(), out T max))
-                {
-                    return actual.CompareTo(max) < 0 ? TestStepStatus.Passed : TestStepStatus.Failed;
-                }
-            }
-            else
-            {
-                // 精确匹配格式
-                if (TryParseValue<T>(qualifiedValue, out T expected))
-                {
-                    return actual.CompareTo(expected) == 0 ? TestStepStatus.Passed : TestStepStatus.Failed;
-                }
-            }
-            
-            return TestStepStatus.Failed;
-        }
-        
-        /// <summary>
-        /// 评估布尔型变量结果
-        /// </summary>
-        private TestStepStatus EvaluateBooleanResult(string actualValue, string qualifiedValue)
-        {
-            if (bool.TryParse(actualValue, out bool actual) && bool.TryParse(qualifiedValue, out bool expected))
-            {
-                return actual == expected ? TestStepStatus.Passed : TestStepStatus.Failed;
-            }
-            
-            return TestStepStatus.Failed;
-        }
-        
-        /// <summary>
-        /// 评估字符串型变量结果
-        /// </summary>
-        private TestStepStatus EvaluateStringResult(string actualValue, string qualifiedValue)
-        {
-            // 字符串比较，忽略大小写
-            return string.Equals(actualValue, qualifiedValue, StringComparison.OrdinalIgnoreCase) ? TestStepStatus.Passed : TestStepStatus.Failed;
-        }
-        
-        /// <summary>
-        /// 尝试解析值为指定类型
-        /// </summary>
-        private bool TryParseValue<T>(string value, out T result)
-        {
-            try
-            {
-                result = (T)Convert.ChangeType(value, typeof(T));
-                return true;
-            }
-            catch
-            {
-                result = default(T);
-                return false;
-            }
-        }
 
         /// <summary>
         /// 更新启动模式逻辑
@@ -2215,7 +2061,7 @@ namespace SIAT
         {
             // 清理之前的资源
             CleanupStartupResources();
-            
+
             switch (_testSettings.StartMode)
             {
                 case StartMode.Barcode:
@@ -2341,6 +2187,7 @@ namespace SIAT
         private bool _isEmergencyStop = false; // 急停状态
         private bool _isStatusUpdated = false; // 状态是否已更新
         private bool _isToolingTestFlowEnabled = true; // 是否启用工装测试流程
+        private bool _isScanTriggered = false; // 扫码触发标志，防止重复触发
         
         /// <summary>
         /// 初始化工装启动逻辑
@@ -2478,7 +2325,7 @@ namespace SIAT
                         ExecuteToolingTestFlow();
                     }
                     
-                    System.Threading.Thread.Sleep(100);
+                    System.Threading.Thread.Sleep(50);
                 }
                 catch (Exception ex)
                 {
@@ -2535,7 +2382,7 @@ namespace SIAT
         {
             try
             {
-                if (data.Length < 20)
+                if (data.Length < 18)
                     return;
                 
                 // 验证帧头 AA 55
@@ -2547,19 +2394,13 @@ namespace SIAT
                     return;
                 
                 // 起始地址
-                int startAddr = (data[4] << 8) | data[5];
-                
-                // 根据地址判断处理方式
-                if (startAddr == 0x0103)
-                {
+               
                     // I/O状态地址
-                    ParseIOStatusFrame(data);
-                }
-                else if (startAddr == 0x0100)
-                {
+                ParseIOStatusFrame(data);
+               
                     // 温度数据地址
-                    ParseTemperatureFrame(data);
-                }
+                ParseTemperatureFrame(data);
+                
             }
             catch (Exception ex)
             {
@@ -2581,9 +2422,9 @@ namespace SIAT
                 if (data.Length < 12)
                     return;
                 
-                // I/O bit数据在第9、10字节（索引8、9）
-                byte ioBitLow = data[8];   // 低字节: DL1-DL4, DH1-DH2, 无效, 无效
-                byte ioBitHigh = data[9];  // 高字节: DI1-DI6, DIH1-DIH2
+                // I/O bit数据在第7,8字节（索引67）
+                byte ioBitLow = data[6];   // 低字节: DL1-DL4, DH1-DH2, 无效, 无效
+                byte ioBitHigh = data[7];  // 高字节: DI1-DI6, DIH1-DIH2
                 
                 // 低字节位展开 (ioBitLow):
                 // bit0: DL1 (低边输出1)
@@ -2694,6 +2535,8 @@ namespace SIAT
                         
                         if (hasValidBarcode && _isButtonPressed)
                         {
+                            // 已有有效条码且按钮按下，重置扫码标志，开始下压
+                            _isScanTriggered = false;
                             Dispatcher.InvokeAsync(() =>
                             {
                                 AddLog("检测到按钮按下，开始执行工装测试流程", "工装");
@@ -2706,10 +2549,21 @@ namespace SIAT
                         }
                         else if (!hasValidBarcode && _isButtonPressed)
                         {
-                            Dispatcher.InvokeAsync(() =>
+                            // 无条码但按钮按下：触发扫码枪扫描（仅触发一次，防止重复发送）
+                            if (!_isScanTriggered)
                             {
-                                AddLog("未扫描条码，忽略按钮按下", "工装");
-                            });
+                                _isScanTriggered = true;
+                                Dispatcher.InvokeAsync(() =>
+                                {
+                                    AddLog("检测到按钮按下，触发扫码枪扫描条码", "工装");
+                                    _barcodeScanner?.TriggerRead();
+                                });
+                            }
+                        }
+                        else if (!_isButtonPressed)
+                        {
+                            // 按钮未按下，重置扫码触发标志，下次按下可重新触发
+                            _isScanTriggered = false;
                         }
                         break;
                         

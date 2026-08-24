@@ -256,7 +256,11 @@ namespace SIAT.TSET
                 {
                     if (inputBinding.IsBound && inputBinding.SelectedVariable != null)
                     {
-                        inputParams[inputBinding.Name] = inputBinding.SelectedVariable.Value;
+                        // 直接值模式: 使用DirectValue; 变量绑定模式: 使用SelectedVariable.Value
+                        string value = inputBinding.ValueType == BindingValueType.DirectValue
+                            ? inputBinding.DirectValue
+                            : inputBinding.SelectedVariable.Value;
+                        inputParams[inputBinding.Name] = value;
                     }
                 }
             }
@@ -329,8 +333,11 @@ namespace SIAT.TSET
                     {
                         if (inputBinding.IsBound && inputBinding.SelectedVariable != null)
                         {
-                            // 直接使用输入绑定的Name作为键值，使用变量的默认值
-                            inputParams[inputBinding.Name] = inputBinding.SelectedVariable.Value;
+                            // 直接值模式: 使用DirectValue; 变量绑定模式: 使用SelectedVariable.Value
+                            string value = inputBinding.ValueType == BindingValueType.DirectValue
+                                ? inputBinding.DirectValue
+                                : inputBinding.SelectedVariable.Value;
+                            inputParams[inputBinding.Name] = value;
                         }
                     }
                 }
