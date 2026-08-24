@@ -693,8 +693,6 @@ namespace SIAT
                 return;
             }
 
-           
-
             // 检查是否已扫描条码
             if (BarcodeText != null && (string.IsNullOrEmpty(BarcodeText.Text) || BarcodeText.Text == "请扫描条码..."))
             {
@@ -709,6 +707,32 @@ namespace SIAT
             else if (BarcodeText != null)
             {
                 _currentBarcode = BarcodeText.Text;
+            }
+
+            StartTesting();
+        }
+
+        /// <summary>
+        /// 工装流程启动测试（跳过UI确认，直接使用已扫描的条码）
+        /// </summary>
+        private void StartTestFromTooling()
+        {
+            if (_isTesting)
+                return;
+
+            if (_currentTestCase == null)
+            {
+                AddLog("工装启动测试失败：未加载测试用例", "错误");
+                return;
+            }
+
+            if (BarcodeText != null && !string.IsNullOrEmpty(BarcodeText.Text))
+            {
+                _currentBarcode = BarcodeText.Text;
+            }
+            else
+            {
+                _currentBarcode = "UNKNOWN";
             }
 
             StartTesting();
@@ -872,10 +896,32 @@ namespace SIAT
                 StatusMessageText.Text = "测试进行中...";
         }
 
+        /// <summary>
+        /// 关闭当前的测试结果弹窗
+        /// </summary>
+        private void CloseResultDialog()
+        {
+            if (_currentResultDialog != null)
+            {
+                try
+                {
+                    if (_currentResultDialog.IsVisible)
+                    {
+                        _currentResultDialog.Close();
+                    }
+                }
+                catch { }
+                _currentResultDialog = null;
+            }
+        }
+
         private void StartTesting()
         {
             try
             {
+                // 关闭上一次的测试结果弹窗
+                CloseResultDialog();
+
                 // 初始化测试状态
                 InitializeTestState();
 
@@ -1028,9 +1074,11 @@ namespace SIAT
                     // 停止测试
                     StopTesting();
 
-                    // 显示测试结果弹窗
-                    TestResultDialog resultDialog = new TestResultDialog(testPassed);
-                    resultDialog.ShowDialog();
+                    // 显示测试结果弹窗（关闭旧弹窗）
+                    CloseResultDialog();
+                    _currentResultDialog = new TestResultDialog(testPassed);
+                    _currentResultDialog.Closed += (s, e) => _currentResultDialog = null;
+                    _currentResultDialog.ShowDialog();
                 });
             }
             catch (Exception ex)
@@ -1268,10 +1316,16 @@ namespace SIAT
                 if (StopTestButton != null)
                     StopTestButton.IsEnabled = false;
 
-                // 测试完成后发送抬起指令（只在状态机处于Testing状态时发送）
+                // 测试完成后根据工装状态发送抬起指令
                 if (_currentToolingState == ToolingState.Testing)
                 {
+                    // 状态机在Testing→PressingUp转换中会自动发送抬起指令，这里不重复发送
+                }
+                else if (_testSettings.StartMode == StartMode.Tooling)
+                {
+                    // 非测试状态下停止测试，主动发送抬起指令确保工装安全
                     SendPressUpCommand();
+                    SendLedOffCommand();
                 }
                 
                 // 重新启用工装测试流程
@@ -2164,16 +2218,19 @@ namespace SIAT
         // 工装状态枚举
         private enum ToolingState
         {
-            Idle,           // 空闲状态
-            ButtonPressed,  // 按钮按下
-            PressingDown,   // 正在下压
-            PressedDown,    // 下压到位
-            Testing,        // 正在测试
-            PressingUp      // 正在抬起
+            Idle,               // 空闲状态
+            WaitForBarcode,     // 等待扫码（两个按钮已按下，等待扫码枪返回）
+            PressingDown,       // 正在下压（已发送下压指令，等待到位）
+            PressedDown,        // 下压到位（到位检测触发，亮灯并启动测试）
+            Testing,            // 正在测试
+            PressingUp          // 正在抬起
         }
         
         // 当前工装状态
         private ToolingState _currentToolingState = ToolingState.Idle;
+
+        // 当前测试结果弹窗引用
+        private TestResultDialog _currentResultDialog;
         
         // 上次发送指令的时间
         private DateTime _lastCommandTime = DateTime.MinValue;
@@ -2182,12 +2239,15 @@ namespace SIAT
         private const int CommandIntervalMs = 1000;
         
         // 全局工装状态变量
-        private bool _isButtonPressed = false; // 按钮是否按下
+        private bool _isButton1Pressed = false; // 按钮1是否按下
+        private bool _isButton2Pressed = false; // 按钮2是否按下
         private bool _isPressDownComplete = false; // 下压是否到位
         private bool _isEmergencyStop = false; // 急停状态
         private bool _isStatusUpdated = false; // 状态是否已更新
         private bool _isToolingTestFlowEnabled = true; // 是否启用工装测试流程
         private bool _isScanTriggered = false; // 扫码触发标志，防止重复触发
+        private DateTime _scanStartTime = DateTime.MinValue; // 扫码开始时间
+        private const int ScanTimeoutMs = 5000; // 扫码超时时间（毫秒）
         
         /// <summary>
         /// 初始化工装启动逻辑
@@ -2211,7 +2271,8 @@ namespace SIAT
                             {
                                 Dispatcher.InvokeAsync(() =>
                                 {
-                                    if (_currentToolingState == ToolingState.Idle)
+                                    if (_currentToolingState == ToolingState.Idle ||
+                                        _currentToolingState == ToolingState.WaitForBarcode)
                                     {
                                         if (BarcodeText != null)
                                         {
@@ -2449,12 +2510,13 @@ namespace SIAT
                 bool di1 = (ioBitHigh & 0x01) != 0; // DI1: 启动按键1检测
                 bool di2 = (ioBitHigh & 0x02) != 0; // DI2: 启动按键2检测
                 bool di3 = (ioBitHigh & 0x04) != 0; // DI3: 到位检测
-                bool dih1 = (ioBitHigh & 0x40) != 0; // DIH1: 急停开关检测
-                bool dih2 = (ioBitHigh & 0x80) != 0; // DIH2: 治具下压到位检测
+                bool dih1 = (ioBitHigh & 0x80) != 0; // DIH1: 急停开关检测
+               
                 
-                _isButtonPressed = di1 || di2;      // 启动按键1或2按下
-                _isPressDownComplete = dih2;        // 治具下压到位
-                _isEmergencyStop = !dih1;           // 急停开关状态（低电平表示急停）
+                _isButton1Pressed = di1;           // 启动按键1按下
+                _isButton2Pressed = di2;           // 启动按键2按下
+                _isPressDownComplete = di3;        // 治具下压到位
+                _isEmergencyStop = dih1;           // 急停开关状态（低电平表示急停）
                 
                 _isStatusUpdated = true;
                 
@@ -2493,10 +2555,7 @@ namespace SIAT
                 // NTC3温度数据在第13-16字节（索引12-15）
                 float ntc3 = BitConverter.ToSingle(data, 12);
                 
-                Dispatcher.InvokeAsync(() =>
-                {
-                    AddLog($"温度数据 - NTC1: {ntc1:F2}°C, NTC3: {ntc3:F2}°C", "治具卡");
-                });
+                
             }
             catch (Exception ex)
             {
@@ -2518,6 +2577,7 @@ namespace SIAT
         /// <summary>
         /// 执行工装测试流程
         /// 使用状态机管理不同状态，避免重复发送下压和抬起指令
+        /// 流程: Idle → WaitForBarcode → PressingDown → Testing → PressingUp → Idle
         /// </summary>
         private void ExecuteToolingTestFlow()
         {
@@ -2526,101 +2586,135 @@ namespace SIAT
                 switch (_currentToolingState)
                 {
                     case ToolingState.Idle:
-                        // 空闲状态，先检查条码是否已扫描，然后检查按钮是否按下
-                        bool hasValidBarcode = false;
-                        Dispatcher.Invoke(() =>
+                        // 空闲状态: 检测按钮1和按钮2是否同时按下
+                        if (_isButton1Pressed && _isButton2Pressed)
                         {
-                            hasValidBarcode = BarcodeText != null && !string.IsNullOrEmpty(BarcodeText.Text) && BarcodeText.Text != "请扫描条码...";
-                        });
-                        
-                        if (hasValidBarcode && _isButtonPressed)
-                        {
-                            // 已有有效条码且按钮按下，重置扫码标志，开始下压
-                            _isScanTriggered = false;
-                            Dispatcher.InvokeAsync(() =>
-                            {
-                                AddLog("检测到按钮按下，开始执行工装测试流程", "工装");
-                            });
-                            
-                            // 发送下压指令
-                            SendPressDownCommand();
-                            // 切换到正在下压状态
-                            _currentToolingState = ToolingState.PressingDown;
-                        }
-                        else if (!hasValidBarcode && _isButtonPressed)
-                        {
-                            // 无条码但按钮按下：触发扫码枪扫描（仅触发一次，防止重复发送）
                             if (!_isScanTriggered)
                             {
                                 _isScanTriggered = true;
+                                _scanStartTime = DateTime.Now;
                                 Dispatcher.InvokeAsync(() =>
                                 {
-                                    AddLog("检测到按钮按下，触发扫码枪扫描条码", "工装");
+                                    AddLog("检测到按钮1和按钮2同时按下，触发扫码枪扫描条码", "工装");
                                     _barcodeScanner?.TriggerRead();
                                 });
+                                _currentToolingState = ToolingState.WaitForBarcode;
                             }
                         }
-                        else if (!_isButtonPressed)
+                        else
                         {
-                            // 按钮未按下，重置扫码触发标志，下次按下可重新触发
+                            // 按钮未同时按下，重置扫码触发标志
                             _isScanTriggered = false;
                         }
                         break;
-                        
-                    case ToolingState.PressingDown:
-                        // 正在下压状态，检查是否到位
-                        if (_isPressDownComplete)
+
+                    case ToolingState.WaitForBarcode:
+                        // 等待扫码阶段: 检测扫码结果和按钮状态
+                        bool bothButtonsReleased = !_isButton1Pressed || !_isButton2Pressed;
+                        if (bothButtonsReleased)
                         {
+                            // 扫码期间任何按钮松开: 发送上抬指令确保工装安全，回到空闲
                             Dispatcher.InvokeAsync(() =>
                             {
-                                AddLog("工装下压到位，启动测试", "工装");
-                            });
-                            
-                            // 切换到下压到位状态
-                            _currentToolingState = ToolingState.PressedDown;
-                            
-                            // 启动测试
-                            Dispatcher.InvokeAsync(() =>
-                            {
-                                StartTestButton_Click(null, new RoutedEventArgs());
-                            });
-                        }
-                        break;
-                        
-                    case ToolingState.PressedDown:
-                        // 下压到位状态，检查按钮是否释放
-                        if (!_isButtonPressed)
-                        {
-                            Dispatcher.InvokeAsync(() =>
-                            {
-                                AddLog("按钮已释放", "工装");
-                            });
-                            // 切换到测试状态
-                            _currentToolingState = ToolingState.Testing;
-                        }
-                        break;
-                        
-                    case ToolingState.Testing:
-                        // 测试状态，检查测试是否正在进行
-                        if (!_isTesting)
-                        {
-                            // 测试已完成，发送抬起指令
-                            Dispatcher.InvokeAsync(() =>
-                            {
-                                AddLog("测试完成，发送抬起指令", "工装");
+                                AddLog("扫码期间按钮松开，发送工装抬起指令并回到空闲", "工装");
                             });
                             SendPressUpCommand();
-                            // 切换到正在抬起状态
+                            SendLedOffCommand();
+                            _isScanTriggered = false;
+                            _currentToolingState = ToolingState.Idle;
+                            break;
+                        }
+
+                        // 检查扫码是否成功
+                        bool hasBarcode = false;
+                        Dispatcher.Invoke(() =>
+                        {
+                            hasBarcode = BarcodeText != null && !string.IsNullOrEmpty(BarcodeText.Text);
+                        });
+
+                        if (hasBarcode)
+                        {
+                            // 扫码成功: 发送治具下压指令
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                AddLog($"扫码成功，发送治具下压指令", "工装");
+                            });
+                            SendPressDownCommand();
+                            _currentToolingState = ToolingState.PressingDown;
+                            break;
+                        }
+
+                        // 扫码超时: 回到空闲状态等待重新触发
+                        if ((DateTime.Now - _scanStartTime).TotalMilliseconds > ScanTimeoutMs)
+                        {
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                AddLog("扫码超时，回到空闲状态", "工装");
+                            });
+                            _isScanTriggered = false;
+                            _currentToolingState = ToolingState.Idle;
+                        }
+                        break;
+
+                    case ToolingState.PressingDown:
+                        // 下压阶段: 检测到位状态或按钮松开
+                        if (_isPressDownComplete)
+                        {
+                            // 检测到到位: 亮起按钮1和按钮2指示灯，然后开始测试
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                AddLog("工装下压到位，亮起指示灯并启动测试", "工装");
+                            });
+                            SendLedOnCommand();
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                StartTestFromTooling();
+                            });
+                            _currentToolingState = ToolingState.Testing;
+                        }
+                        else if (!_isButton1Pressed || !_isButton2Pressed)
+                        {
+                            // 到位前按钮松开任意一个: 发送上抬指令
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                AddLog("下压期间按钮松开，发送工装抬起指令", "工装");
+                            });
+                            SendPressUpCommand();
+                            SendLedOffCommand();
                             _currentToolingState = ToolingState.PressingUp;
                         }
                         break;
-                        
-                    case ToolingState.PressingUp:
-                        // 正在抬起状态，检查是否抬起到位（如果有抬起到位检测的话）
-                        // 目前没有抬起到位检测，所以检查是否已经过了足够的时间
-                        TimeSpan timeSincePressUp = DateTime.Now - _lastCommandTime;
-                        if (timeSincePressUp.TotalMilliseconds >= 500) // 等待500ms后切换到空闲状态
+
+                    case ToolingState.PressedDown:
+                        // 保留状态: 已到位并亮灯，实际测试在Testing阶段进行
+                        if (!_isButton1Pressed || !_isButton2Pressed)
                         {
+                            SendPressUpCommand();
+                            SendLedOffCommand();
+                            _currentToolingState = ToolingState.PressingUp;
+                        }
+                        break;
+
+                    case ToolingState.Testing:
+                        // 测试状态: 等待测试完成
+                        if (!_isTesting)
+                        {
+                            Dispatcher.InvokeAsync(() =>
+                            {
+                                AddLog("测试完成，发送工装抬起指令", "工装");
+                            });
+                            SendPressUpCommand();
+                            _currentToolingState = ToolingState.PressingUp;
+                        }
+                        break;
+
+                    case ToolingState.PressingUp:
+                        // 抬起状态: 等待抬起完成后熄灭指示灯回到空闲
+                        TimeSpan timeSincePressUp = DateTime.Now - _lastCommandTime;
+                        if (timeSincePressUp.TotalMilliseconds >= 500)
+                        {
+                            SendLedOffCommand();
+                            _isScanTriggered = false;
                             _currentToolingState = ToolingState.Idle;
                             Dispatcher.InvokeAsync(() =>
                             {
@@ -2635,7 +2729,10 @@ namespace SIAT
                 Dispatcher.InvokeAsync(() =>
                 {
                     AddLog($"执行工装测试流程失败: {ex.Message}", "错误");
-                    // 发生异常时重置状态
+                    // 发生异常时重置状态，确保安全
+                    SendPressUpCommand();
+                    SendLedOffCommand();
+                    _isScanTriggered = false;
                     _currentToolingState = ToolingState.Idle;
                 });
             }
@@ -2660,21 +2757,14 @@ namespace SIAT
         {
             try
             {
-                if (!CanSendCommand())
-                {
-                    Dispatcher.InvokeAsync(() =>
-                    {
-                        AddLog("指令发送过于频繁，忽略此次发送", "调试");
-                    });
-                    return;
-                }
+                
                 
                 // 标准Modbus RTU协议：从站地址+功能码+寄存器地址+寄存器值
                 // 从站地址: 0x01
-                // 功能码: 0x06（写单个寄存器）
-                // 寄存器地址: 0x0100（大端序）
-                // 下压值: 0x0001（设置DL1=1）
-                byte[] pressDownData = { 0x01, 0x06, 0x01, 0x00, 0x00, 0x01 };
+                // 功能码: 0x05（写单个线圈）
+                // 寄存器地址: 0x0108（大端序）
+                // 下压值: 0xFF00（设置DL1=1）
+                byte[] pressDownData = { 0x01, 0x05, 0x01, 0x08, 0xff, 0x00 };
                 SendJigCommand(pressDownData);
                 
                 _lastCommandTime = DateTime.Now;
@@ -2703,21 +2793,13 @@ namespace SIAT
                 if (_jigSerialPort == null || !_jigSerialPort.IsOpen)
                     return;
                 
-                if (!CanSendCommand())
-                {
-                    Dispatcher.InvokeAsync(() =>
-                    {
-                        AddLog("指令发送过于频繁，忽略此次发送", "调试");
-                    });
-                    return;
-                }
-                
+               
+
                 // 标准Modbus RTU协议：从站地址+功能码+寄存器地址+寄存器值
                 // 从站地址: 0x01
-                // 功能码: 0x06（写单个寄存器）
-                // 寄存器地址: 0x0100（大端序）
-                // 抬起值: 0x0000（设置DL1=0）
-                byte[] pressUpData = { 0x01, 0x06, 0x01, 0x00, 0x00, 0x00 };
+                // 功能码: 0x05（写单个线圈）
+                // 寄存器地址: 0x0108（大端序）
+                byte[] pressUpData = { 0x01, 0x05, 0x01, 0x08, 0x00, 0x00 };
                 SendJigCommand(pressUpData);
                 
                 _lastCommandTime = DateTime.Now;
@@ -2738,10 +2820,71 @@ namespace SIAT
         }
         
         /// <summary>
+        /// 点亮按钮1和按钮2的指示灯
+        /// 按钮1指示灯: 01 05 01 07 FF 00
+        /// 按钮2指示灯: 01 05 01 10 FF 00
+        /// </summary>
+        private void SendLedOnCommand()
+        {
+            try
+            {
+                // 按钮1指示灯 - 线圈地址0x0107, 置位
+                byte[] led1On = { 0x01, 0x05, 0x01, 0x07, 0xFF, 0x00 };
+                SendJigCommand(led1On);
+
+                // 按钮2指示灯 - 线圈地址0x0110, 置位
+                byte[] led2On = { 0x01, 0x05, 0x01, 0x10, 0xFF, 0x00 };
+                SendJigCommand(led2On);
+
+                Dispatcher.InvokeAsync(() =>
+                {
+                    AddLog("已点亮按钮1和按钮2指示灯", "工装");
+                });
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    AddLog($"发送指示灯点亮指令失败: {ex.Message}", "错误");
+                });
+            }
+        }
+
+        /// <summary>
+        /// 熄灭按钮1和按钮2的指示灯
+        /// </summary>
+        private void SendLedOffCommand()
+        {
+            try
+            {
+                // 按钮1指示灯 - 线圈地址0x0107, 复位
+                byte[] led1Off = { 0x01, 0x05, 0x01, 0x07, 0x00, 0x00 };
+                SendJigCommand(led1Off);
+
+                // 按钮2指示灯 - 线圈地址0x0110, 复位
+                byte[] led2Off = { 0x01, 0x05, 0x01, 0x10, 0x00, 0x00 };
+                SendJigCommand(led2Off);
+
+                Dispatcher.InvokeAsync(() =>
+                {
+                    AddLog("已熄灭按钮指示灯", "工装");
+                });
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    AddLog($"发送指示灯熄灭指令失败: {ex.Message}", "错误");
+                });
+            }
+        }
+        
+        /// <summary>
         /// 发送治具卡指令（标准Modbus RTU协议）
         /// </summary>
         private void SendJigCommand(byte[] data)
         {
+            Thread.Sleep(100);
             if (_jigSerialPort == null || !_jigSerialPort.IsOpen)
                 return;
             
