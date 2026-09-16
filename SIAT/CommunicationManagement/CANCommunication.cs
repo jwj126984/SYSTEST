@@ -18,7 +18,7 @@ namespace SIAT.CommunicationManagement
         private string _deviceModel;
         private uint _deviceType;
         private uint _channelIndex;
-        private bool _isMerge = false; // 合并接收标志
+        private bool _isMerge = true; // 合并接收标志
         
         // 线程接收相关字段
         private ConcurrentQueue<ZLGCAN.ZCAN_Receive_Data> _receiveQueue;
@@ -480,9 +480,8 @@ namespace SIAT.CommunicationManagement
                     throw new InvalidOperationException("CAN未连接");
                 }
 
-                // 清空队列，确保只处理新收到的报文
-                while (_receiveQueue.TryDequeue(out _)) { }
-                while (_receiveFdQueue.TryDequeue(out _)) { }
+                // 不再清空队列：ECU 响应可能在发送完成到调用接收之间就已入队，
+                // 清空会丢弃已到达的合法响应。改为按序消费队列内容。
 
                 // 记录开始时间
                 DateTime startTime = DateTime.Now;
@@ -490,6 +489,9 @@ namespace SIAT.CommunicationManagement
                 // 判断是否为CANFD协议
                 bool isCanFdProtocol = protocolType.Equals("CANFD", StringComparison.OrdinalIgnoreCase);
                 bool checkBothQueues = string.IsNullOrEmpty(protocolType);
+
+                // 用于比较的纯净 ID（去除 EFF 标志位）
+                uint? pureCanId = canId.HasValue ? (canId.Value & 0x1FFFFFFFu) : (uint?)null;
 
                 // 循环检查队列中是否有匹配的报文
                 while ((DateTime.Now - startTime).TotalMilliseconds < timeout)
@@ -500,10 +502,10 @@ namespace SIAT.CommunicationManagement
                         while (_receiveFdQueue.TryDequeue(out ZLGCAN.ZCAN_ReceiveFD_Data receiveData))
                         {
                             ZLGCAN.canfd_frame frame = receiveData.frame;
-                            uint receivedCanId = frame.can_id;
+                            uint receivedCanId = frame.can_id & 0x1FFFFFFFu; // 去除 EFF 标志位
 
                             // 如果指定了CAN ID，检查是否匹配
-                            if (!canId.HasValue || receivedCanId == canId.Value)
+                            if (!pureCanId.HasValue || receivedCanId == pureCanId.Value)
                             {
                                 string hexData = BitConverter.ToString(frame.data, 0, frame.len).Replace("-", " ");
                                 string receiveResultStr = $"[{_deviceModel}] 接收成功: ID=0x{receivedCanId:X3}, Data={hexData}, DLC={frame.len}, Timestamp={receiveData.timestamp}us";
@@ -518,14 +520,13 @@ namespace SIAT.CommunicationManagement
                         while (_receiveQueue.TryDequeue(out ZLGCAN.ZCAN_Receive_Data receiveData))
                         {
                             ZLGCAN.can_frame frame = receiveData.frame;
-                            uint receivedCanId = frame.can_id;
+                            uint receivedCanId = frame.can_id & 0x1FFFFFFFu; // 去除 EFF 标志位
 
                             // 如果指定了CAN ID，检查是否匹配
-                            if (!canId.HasValue || receivedCanId == canId.Value)
+                            if (!pureCanId.HasValue || receivedCanId == pureCanId.Value)
                             {
                                 string hexData = BitConverter.ToString(frame.data, 0, frame.can_dlc).Replace("-", " ");
                                 string receiveResultStr = $"[{_deviceModel}] 接收成功: ID=0x{receivedCanId:X3}, Data={hexData}, DLC={frame.can_dlc}, Timestamp={receiveData.timestamp}us";
-                                Console.WriteLine(receiveResultStr);
                                 return receiveResultStr;
                             }
                         }
@@ -902,6 +903,8 @@ namespace SIAT.CommunicationManagement
         
         /// <summary>
         /// 从字符串解析CAN帧
+        /// 字符串格式: "ID=0x..,DATA=..[,EXT][,CANFD]"
+        /// 可选 EXT 标记表示扩展帧(设置 can_id 的 EFF 标志位 bit31=0x80000000)
         /// </summary>
         private Tuple<ZLGCAN.can_frame, ZLGCAN.canfd_frame> ParseCanFrameFromString(string data)
         {
@@ -909,7 +912,8 @@ namespace SIAT.CommunicationManagement
             uint canId = 0x100;
             byte[] frameData = new byte[8];
             int dlc = 8;
-            
+            bool isExtended = false;
+
             // 解析ID
             int idIndex = data.IndexOf("ID=", StringComparison.OrdinalIgnoreCase);
             if (idIndex >= 0)
@@ -921,12 +925,30 @@ namespace SIAT.CommunicationManagement
                     canId = Convert.ToUInt32(idStr, 16);
                 }
             }
-            
+
+            // 检测扩展帧标记 EXT
+            if (data.IndexOf("EXT", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                isExtended = true;
+            }
+
+            // 扩展帧设置 EFF 标志位(bit31)
+            if (isExtended)
+            {
+                canId |= 0x80000000u;
+            }
+
             // 解析DATA
             int dataIndex = data.IndexOf("DATA=", StringComparison.OrdinalIgnoreCase);
             if (dataIndex >= 0)
             {
                 string dataStr = data.Substring(dataIndex + 5).Trim();
+                // 截断到第一个逗号前(避免 EXT/CANFD 标记混入数据)
+                int dataEnd = dataStr.IndexOf(',');
+                if (dataEnd >= 0)
+                {
+                    dataStr = dataStr.Substring(0, dataEnd).Trim();
+                }
                 string[] dataBytes = dataStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 dlc = Math.Min(dataBytes.Length, 8);
                 frameData = new byte[8];
@@ -940,13 +962,13 @@ namespace SIAT.CommunicationManagement
                     frameData[i] = 0;
                 }
             }
-            
+
             // 创建CAN帧
             ZLGCAN.can_frame canFrame = new ZLGCAN.can_frame();
             canFrame.can_id = canId;
             canFrame.can_dlc = 8;
             canFrame.data = frameData;
-            
+
             // 创建CAN FD帧
             ZLGCAN.canfd_frame canFdFrame = new ZLGCAN.canfd_frame();
             canFdFrame.can_id = canId;
@@ -960,7 +982,7 @@ namespace SIAT.CommunicationManagement
             {
                 canFdFrame.data[i] = 0;
             }
-            
+
             return Tuple.Create(canFrame, canFdFrame);
         }
     }

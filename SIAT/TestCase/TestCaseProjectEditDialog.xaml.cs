@@ -10,6 +10,7 @@ namespace SIAT
     public partial class TestCaseProjectEditDialog : Window, INotifyPropertyChanged
     {
         private TestCaseProject _project = new TestCaseProject();
+        private bool _isNewMode = false;
 
         public TestCaseProject Project
         {
@@ -17,11 +18,18 @@ namespace SIAT
             set { _project = value; OnPropertyChanged(nameof(Project)); }
         }
 
-        public TestCaseProjectEditDialog(TestCaseProject project)
+        /// <summary>
+        /// 是否为新建模式
+        /// </summary>
+        public bool IsNewMode => _isNewMode;
+
+        public TestCaseProjectEditDialog(TestCaseProject project, bool isNewMode = false)
         {
             InitializeComponent();
             DataContext = this;
-            
+
+            _isNewMode = isNewMode;
+
             // 创建项目副本以避免直接修改原始对象
             Project = new TestCaseProject
             {
@@ -30,6 +38,20 @@ namespace SIAT
                 ProjectPath = project.ProjectPath,
                 AddedDate = project.AddedDate
             };
+
+            // 新建模式下调整界面：隐藏路径/时间信息，修改标题与按钮文本
+            if (_isNewMode)
+            {
+                Title = "新建测试项";
+                if (ProjectInfoPanel != null)
+                {
+                    ProjectInfoPanel.Visibility = Visibility.Collapsed;
+                }
+                if (OKButton != null)
+                {
+                    OKButton.Content = "创建";
+                }
+            }
         }
 
         private void OKButton_Click(object sender, RoutedEventArgs e)

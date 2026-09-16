@@ -7,8 +7,8 @@
         xmlns:tset="clr-namespace:SIAT.TSET"
         mc:Ignorable="d"
         Title="测试界面" 
-        Height="720" 
-        Width="1100"
+        Height="900" 
+        Width="1400"
         MinHeight="600"
         MinWidth="900"
         WindowStartupLocation="CenterOwner"
@@ -60,8 +60,9 @@
 
         <!-- 主要按钮样式 -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="Height" Value="50"/>
+            <Setter Property="Width" Value="130"/>
             <Setter Property="Padding" Value="10,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="#0078D4"/>
@@ -117,6 +118,23 @@
             <Setter Property="Margin" Value="6,0,0,0"/>
         </Style>
 
+        <Style x:Key="SuccessSmallButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Background" Value="#28A745"/>
+            <Setter Property="BorderBrush" Value="#218838"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#218838"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#1E7E34"/>
+                </Trigger>
+            </Style.Triggers>
+            
+        </Style>
         <!-- 数据网格样式 -->
         <Style TargetType="DataGrid">
             <Setter Property="Background" Value="White"/>
@@ -218,7 +236,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="44"/>
                 <!-- 标题栏 -->
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="75"/>
                 <!-- 控制区域 -->
                 <RowDefinition Height="*"/>
                 <!-- 主要内容 -->
@@ -272,7 +290,7 @@
                                 Click="WindowMinimizeButton_Click"/>
                         <!-- 全屏按钮 -->
                         <Button x:Name="WindowMaximizeButton"
-                                Content="🗗" 
+                                Content="🗖" 
                                 Style="{StaticResource WindowControlButtonStyle}"
                                 Click="WindowMaximizeButton_Click"/>
                         <!-- 关闭按钮 -->
@@ -295,20 +313,20 @@
 
                     <!-- 文件选择区域 -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="📁" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="📁" FontSize="20" Margin="0,0,6,0" VerticalAlignment="Center"/>
                         <TextBlock Text="用例选择:" FontWeight="Medium" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                        <Border Background="White" BorderBrush="#D1D1D1" BorderThickness="1" CornerRadius="3" Width="200" Height="30" Margin="0,0,8,0">
+                        <Border Background="White" BorderBrush="#D1D1D1" BorderThickness="1" CornerRadius="3" Width="200" Height="50" Margin="0,0,8,0">
                             <TextBlock x:Name="TestCaseFileText" 
                                        Text="未选择用例文件" 
-                                       FontSize="12" 
+                                       FontSize="16" 
                                        Foreground="#666666"
                                        VerticalAlignment="Center"
                                        Margin="8,0"/>
                         </Border>
                         <Button x:Name="SelectTestCaseButton"
-                                Content="选择文件" 
+                                Content="选择用例"
                                 Style="{StaticResource PrimaryButtonStyle}"
-                                Width="80"
+                                
                                 Margin="0,0,0,0"
                                 Click="SelectTestCaseButton_Click"/>
                     </StackPanel>
@@ -317,12 +335,12 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
                         <TextBlock x:Name="CurrentTestCaseText" 
                                    Text="" 
-                                   FontSize="12" 
+                                   FontSize="18" 
                                    Foreground="#333333"
                                    VerticalAlignment="Center"/>
                         <TextBlock x:Name="TestCaseProjectsText" 
                                    Text="" 
-                                   FontSize="11" 
+                                   FontSize="16" 
                                    Foreground="#666666"
                                    VerticalAlignment="Center"
                                    Margin="8,0,0,0"/>
@@ -332,19 +350,19 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Content="测试设置" 
                                 Style="{StaticResource PrimaryButtonStyle}"
-                                Width="90"
+                                
                                 Click="TestSettingsButton_Click"/>
 
                         <Button x:Name="StartTestButton"
                                 Content="▶ 启动测试" 
                                 Style="{StaticResource SuccessButtonStyle}"
-                                Width="90"
+                               
                                 Click="StartTestButton_Click" Cursor=""/>
 
                         <Button x:Name="StopTestButton"
                                 Content="⏹ 停止测试" 
                                 Style="{StaticResource DangerButtonStyle}"
-                                Width="90"
+                           
                                 IsEnabled="False"
                                 Click="StopTestButton_Click"/>
                     </StackPanel>
@@ -550,13 +568,14 @@
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="📷" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                    <TextBlock Text="条码扫描" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBlock Text="条码输入" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
                                 </StackPanel>
 
                                 <Border Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="8">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="5*"/>
+                                            <ColumnDefinition Width="49*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
@@ -565,17 +584,17 @@
                                                    FontSize="13" 
                                                    FontWeight="Medium"
                                                    Foreground="#666666"
-                                                   VerticalAlignment="Center"
+                                                   VerticalAlignment="Top"
                                                    AcceptsReturn="False"
                                                    TextAlignment="Left"
                                                    ToolTip="请扫描或输入产品条码"
-                                                   TextChanged="BarcodeText_TextChanged"/>
+                                                   TextChanged="BarcodeText_TextChanged" Grid.ColumnSpan="2"/>
 
-                                        <Button Grid.Column="1" 
+                                        <!--<Button Grid.Column="1" 
                                                 Content="模拟扫描" 
                                                 Style="{StaticResource SmallButtonStyle}"
                                                 Width="70"
-                                                Click="SimulateScanButton_Click"/>
+                                                Click="SimulateScanButton_Click"/>-->
                                     </Grid>
                                 </Border>
 
@@ -759,6 +778,20 @@
                                                FontSize="10.5"/>
                                 </ScrollViewer>
                             </Border>
+
+                            <DockPanel Height="100"  Margin="0 8 0 0">
+                                <Border Margin="0 20 0 20">
+                                    <Grid>
+                                        <UniformGrid Columns="5">
+                                            <Border x:Name="border1" Margin="16 0" Background="#06b025"></Border>
+                                            <Border x:Name="border2" Margin="16 0"  Background="#06b025"></Border>
+                                            <Border x:Name="border3" Margin="16 0"  Background="#06b025"></Border>
+                                            <Border x:Name="border4" Margin="16 0"  Background="#06b025"></Border>
+                                            <Border x:Name="border5" Margin="16 0"  Background="#06b025"></Border>
+                                        </UniformGrid>
+                                    </Grid>
+                                </Border>
+                            </DockPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -775,7 +808,7 @@
 
                     <!-- 进度图标 -->
                     <TextBlock Grid.Column="0" Text="📊" FontSize="14" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    
+
                     <!-- 进度条 -->
                     <Border Grid.Column="1" Background="#E9ECEF" BorderBrush="#D1D1D1" BorderThickness="1" CornerRadius="6" Height="24" VerticalAlignment="Center">
                         <Border.Effect>
@@ -793,7 +826,7 @@
                             </Border.Background>
                         </Border>
                     </Border>
-                    
+
                     <!-- 进度百分比 -->
                     <TextBlock Grid.Column="2" x:Name="ProgressPercentageText" 
                                Text="0%" 

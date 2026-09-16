@@ -244,6 +244,7 @@ namespace SIAT.TSET
         private TestStepStatus _status = TestStepStatus.Pending;
         private string _testTime = string.Empty;
         private TimeSpan _duration = TimeSpan.Zero;
+        private bool _isRange = false;
 
         public string Name
         {
@@ -309,6 +310,12 @@ namespace SIAT.TSET
         {
             get => _duration;
             set { _duration = value; OnPropertyChanged(); }
+        }
+
+        public bool IsRange
+        {
+            get => _isRange;
+            set { _isRange = value; OnPropertyChanged(); }
         }
 
         public TestVariable() { }
@@ -770,6 +777,7 @@ namespace SIAT.TSET
                                     IsVisible = projectVar.IsVisible,
                                     Description = projectVar.Description ?? "",
                                     Unit = projectVar.Unit ?? "-", // 使用变量的实际单位，默认值为"-"
+                                    IsRange = projectVar.IsRange, // 同步合格值类型(单值/范围)
                                     ActualValue = "", // 实测值初始为空
                                     Status = TestStepStatus.Pending // 初始状态
                                 };

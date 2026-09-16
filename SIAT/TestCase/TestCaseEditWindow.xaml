@@ -120,7 +120,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- 项目列表标题 -->
-                <TextBlock Grid.Row="0" Text="可用项目" Style="{StaticResource SectionTitleStyle}"/>
+                <TextBlock Grid.Row="0" Text="模板项目（双击添加到用例）" Style="{StaticResource SectionTitleStyle}"/>
 
                 <!-- 项目列表 -->
                 <Grid Grid.Row="1" Margin="0,25,0,0">
@@ -129,14 +129,17 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 搜索框和添加按钮 -->
+                    <!-- 搜索框、新建按钮、删除按钮 -->
                     <Grid Grid.Row="0" Margin="0,0,0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox Grid.Column="0" x:Name="ProjectSearchTextBox" Height="30" TextChanged="ProjectSearchTextBox_TextChanged" ToolTip="搜索项目..." FontSize="13" Padding="5,2" Background="White" BorderThickness="1" BorderBrush="#CCCCCC"/>
                         <TextBlock x:Name="SearchPlaceholder" Text="搜索项目..." Foreground="#999999" FontSize="13" Margin="8,6,0,0" IsHitTestVisible="False" Visibility="Collapsed"/>
+                        <Button Grid.Column="1" x:Name="NewProjectButton" Content="新建测试项" Style="{StaticResource PrimaryButtonStyle}" Click="NewProjectButton_Click" Margin="5,0,0,0"/>
+                        <Button Grid.Column="2" x:Name="DeleteTestCaseProjectButton" Content="删除" Style="{StaticResource PrimaryButtonStyle}" Click="DeleteTestCaseProjectButton_Click" Margin="5,0,0,0" ToolTip="从用例中删除选中的测试项"/>
                        </Grid>
                     <ListView Grid.Row="1" x:Name="ProjectList" ItemsSource="{Binding FilteredProjects}" SelectedItem="{Binding SelectedProject}" ItemContainerStyle="{StaticResource ListItemStyle}" SelectionChanged="ProjectList_SelectionChanged" MouseDoubleClick="ProjectList_MouseDoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <ListView.View>

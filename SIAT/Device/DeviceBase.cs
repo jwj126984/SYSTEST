@@ -195,6 +195,19 @@ namespace SIAT.Devices
         }
 
         /// <summary>
+        /// 发送字符串数据(指定协议类型，如 "CAN"/"CANFD")
+        /// </summary>
+        protected async Task SendDataAsync(string data, string protocolType)
+        {
+            if (_communication != null)
+            {
+                await _communication.SendAsync(data, protocolType);
+                return;
+            }
+            throw new InvalidOperationException($"设备 {DeviceName} 未绑定通信实例");
+        }
+
+        /// <summary>
         /// 发送字节数据
         /// </summary>
         protected async Task SendDataAsync(byte[] data)
@@ -215,6 +228,18 @@ namespace SIAT.Devices
             if (_communication != null)
             {
                 return await _communication.ReceiveAsync();
+            }
+            throw new InvalidOperationException($"设备 {DeviceName} 未绑定通信实例");
+        }
+
+        /// <summary>
+        /// 接收字符串数据(指定超时)
+        /// </summary>
+        protected async Task<string> ReceiveDataAsync(int timeout)
+        {
+            if (_communication != null)
+            {
+                return await _communication.ReceiveAsync(timeout);
             }
             throw new InvalidOperationException($"设备 {DeviceName} 未绑定通信实例");
         }

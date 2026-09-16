@@ -385,16 +385,61 @@ namespace SIAT
             AddProjectToTestCase();
         }
 
+        /// <summary>
+        /// 新建测试项按钮点击：弹出对话框输入名称/描述，在用例下记录待创建的空白测试项
+        /// 不立即创建文件夹，保存用例时才生成物理文件夹
+        /// </summary>
+        private void NewProjectButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new TestCaseProjectEditDialog(new TestCaseProject(), isNewMode: true)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            string name = dialog.Project.Name;
+            string description = dialog.Project.Description;
+
+            // 不立即创建文件夹：只在内存中记录，保存时才创建
+            var testCaseProject = new TestCaseProject
+            {
+                Name = name,
+                Description = description,
+                ProjectPath = string.Empty, // 留空，保存时才创建
+                AddedDate = DateTime.Now,
+                IsPendingCreate = true,
+                IsNewBlank = true
+            };
+
+            var testCaseProjectItem = new TestCaseProjectItem
+            {
+                Project = testCaseProject
+            };
+
+            TestCaseProjects.Add(testCaseProjectItem);
+            UpdateProjectIndexes();
+            IsModified = true;
+
+            StatusText.Text = $"已添加测试项: {name}（保存后可双击编辑）";
+        }
+
         private void AddProjectToTestCase()
         {
             if (SelectedProject == null) return;
 
+            // 不立即创建文件夹：只在内存中记录模板源，保存时才创建物理文件夹
+            string baseName = string.IsNullOrWhiteSpace(SelectedProject.Name) ? "测试项" : SelectedProject.Name;
+
             var testCaseProject = new TestCaseProject
             {
-                Name = SelectedProject.Name,
+                Name = baseName,
                 Description = SelectedProject.Description,
-                ProjectPath = SelectedProject.ProjectPath,
-                AddedDate = DateTime.Now
+                ProjectPath = string.Empty, // 留空，保存时才创建
+                AddedDate = DateTime.Now,
+                SourceTemplatePath = SelectedProject.ProjectPath,
+                IsPendingCreate = true,
+                IsNewBlank = false
             };
 
             var testCaseProjectItem = new TestCaseProjectItem
@@ -423,13 +468,240 @@ namespace SIAT
             // 更新所有项目的索引
             UpdateProjectIndexes();
             IsModified = true;
-            
-            StatusText.Text = $"已添加项目: {SelectedProject.Name}";
+
+            StatusText.Text = $"已添加测试项: {baseName}（保存后生效）";
+        }
+
+        /// <summary>
+        /// 获取当前用例专属的测试项目录：TestCases\{用例名}\Projects\
+        /// 每个用例的测试项独立存储在该目录下，互不共享
+        /// </summary>
+        private string GetTestCaseProjectsDir()
+        {
+            string testCaseName = Path.GetFileNameWithoutExtension(_testCasePath);
+            string testCaseParent = Path.GetDirectoryName(_testCasePath) ?? AppDomain.CurrentDomain.BaseDirectory;
+            string testCaseDir = Path.Combine(testCaseParent, testCaseName);
+            string projectsDir = Path.Combine(testCaseDir, "Projects");
+            if (!Directory.Exists(projectsDir))
+            {
+                Directory.CreateDirectory(projectsDir);
+            }
+            return projectsDir;
+        }
+
+        /// <summary>
+        /// 从全局模板复制一份独立副本到当前用例目录，返回新目录路径与最终名称
+        /// 目录名用后缀保持文件系统唯一，但显示名/文件名/config名都用原名(无后缀)
+        /// </summary>
+        private string CopyTemplateToTestCase(ProjectConfig template, out string finalName)
+        {
+            string projectsDir = GetTestCaseProjectsDir();
+            string baseName = string.IsNullOrWhiteSpace(template.Name) ? "测试项" : template.Name;
+            string destName = baseName;
+            string destDir = Path.Combine(projectsDir, destName);
+
+            // 避免同用例下重名：仅目录名加后缀保持文件系统唯一
+            int suffix = 1;
+            while (Directory.Exists(destDir))
+            {
+                suffix++;
+                destName = $"{baseName}_{suffix}";
+                destDir = Path.Combine(projectsDir, destName);
+            }
+
+            Directory.CreateDirectory(destDir);
+
+            string templateDir = template.ProjectPath;
+            if (Directory.Exists(templateDir))
+            {
+                foreach (var file in Directory.GetFiles(templateDir, "*", SearchOption.AllDirectories))
+                {
+                    string rel = Path.GetRelativePath(templateDir, file);
+                    string destFile = Path.Combine(destDir, rel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destFile));
+                    File.Copy(file, destFile, true);
+                }
+
+                // 文件名保持原名(与 baseName 一致)，仅更新 project.config 中的 ProjectName 为原名
+                UpdateProjectConfigName(destDir, baseName);
+            }
+
+            // 显示名用原名(无后缀)
+            finalName = baseName;
+            return destDir;
+        }
+
+        /// <summary>
+        /// 在当前用例下创建一个空白测试项，返回新目录路径与最终名称
+        /// 目录名用后缀保持文件系统唯一，但显示名/config名都用原名(无后缀)
+        /// </summary>
+        private string CreateNewProjectInTestCase(string projectName, string description, out string finalName)
+        {
+            string projectsDir = GetTestCaseProjectsDir();
+            string baseName = string.IsNullOrWhiteSpace(projectName) ? "测试项" : projectName;
+            string destName = baseName;
+            string destDir = Path.Combine(projectsDir, destName);
+
+            int suffix = 1;
+            while (Directory.Exists(destDir))
+            {
+                suffix++;
+                destName = $"{baseName}_{suffix}";
+                destDir = Path.Combine(projectsDir, destName);
+            }
+
+            Directory.CreateDirectory(destDir);
+
+            // 创建 project.config 配置文件，ProjectName 用原名(无后缀)
+            string configPath = Path.Combine(destDir, "project.config");
+            string config = $"ProjectName={baseName}\nProjectDescription={description}\nCreationDate={DateTime.Now:yyyy-MM-dd HH:mm:ss}\n";
+            File.WriteAllText(configPath, config);
+
+            // 显示名用原名(无后缀)
+            finalName = baseName;
+            return destDir;
+        }
+
+        /// <summary>
+        /// 更新 project.config 中的 ProjectName 为指定名称
+        /// </summary>
+        private void UpdateProjectConfigName(string projectDir, string name)
+        {
+            string configPath = Path.Combine(projectDir, "project.config");
+            if (File.Exists(configPath))
+            {
+                string content = File.ReadAllText(configPath);
+                // 替换 ProjectName= 行
+                int idx = content.IndexOf("ProjectName=", StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0)
+                {
+                    int lineEnd = content.IndexOf('\n', idx);
+                    if (lineEnd < 0) lineEnd = content.Length;
+                    content = content.Substring(0, idx) + $"ProjectName={name}" + content.Substring(lineEnd);
+                }
+                else
+                {
+                    content = $"ProjectName={name}\n" + content;
+                }
+                File.WriteAllText(configPath, content);
+            }
+            else
+            {
+                File.WriteAllText(configPath, $"ProjectName={name}\n");
+            }
+        }
+
+        /// <summary>
+        /// 重命名测试项目录下以旧名为前缀的 _Steps.xml/_Variables.xml 文件，并同步 project.config 中的 ProjectName
+        /// </summary>
+        private void RenameProjectFiles(string projectDir, string oldName, string newName)
+        {
+            if (string.IsNullOrEmpty(oldName) || oldName == newName) return;
+
+            string[] suffixes = { "_Steps.xml", "_Variables.xml" };
+            foreach (var sfx in suffixes)
+            {
+                string oldFile = Path.Combine(projectDir, oldName + sfx);
+                string newFile = Path.Combine(projectDir, newName + sfx);
+                if (File.Exists(oldFile))
+                {
+                    File.Move(oldFile, newFile);
+                }
+            }
+
+            string configPath = Path.Combine(projectDir, "project.config");
+            if (File.Exists(configPath))
+            {
+                string content = File.ReadAllText(configPath);
+                content = content.Replace($"ProjectName={oldName}", $"ProjectName={newName}");
+                File.WriteAllText(configPath, content);
+            }
+        }
+
+        /// <summary>
+        /// 打开测试项编辑界面（ProjectEditWindow），编辑指定测试项的步骤
+        /// </summary>
+        private void OpenProjectEditor(ProjectConfig projectConfig)
+        {
+            if (projectConfig == null || string.IsNullOrWhiteSpace(projectConfig.ProjectPath))
+            {
+                MessageBox.Show("测试项路径无效，无法打开编辑器", "错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!Directory.Exists(projectConfig.ProjectPath))
+            {
+                Directory.CreateDirectory(projectConfig.ProjectPath);
+            }
+
+            var editWindow = new ProjectEditWindow(projectConfig, projectConfig.ProjectPath)
+            {
+                Owner = this
+            };
+            editWindow.ShowDialog();
+
+            // 编辑器关闭后，同步当前选中测试项的描述（从 project.config 读取）
+            if (SelectedTestCaseProject != null)
+            {
+                string configPath = Path.Combine(projectConfig.ProjectPath, "project.config");
+                if (File.Exists(configPath))
+                {
+                    foreach (var line in File.ReadAllLines(configPath))
+                    {
+                        if (line.StartsWith("ProjectDescription="))
+                        {
+                            SelectedTestCaseProject.Description = line.Substring("ProjectDescription=".Length);
+                            break;
+                        }
+                    }
+                }
+                IsModified = true;
+            }
         }
 
         private string GetProjectPath(string projectName)
         {
             return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Projects", projectName);
+        }
+
+        /// <summary>
+        /// 删除左侧模板项目列表中选中的模板（同时删除全局 Projects 目录下对应的测试项文件夹）
+        /// </summary>
+        private void DeleteTestCaseProjectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedProject == null)
+            {
+                MessageBox.Show("请先在模板项目列表中选中要删除的测试项", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"确认删除模板项目「{SelectedProject.Name}」吗？\n\n此操作将删除全局 Projects 目录下对应的测试项文件夹，不可恢复。",
+                "删除确认",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            try
+            {
+                // 1. 删除全局 Projects 目录下的测试项文件夹
+                string projectPath = SelectedProject.ProjectPath;
+                if (!string.IsNullOrWhiteSpace(projectPath) && Directory.Exists(projectPath))
+                {
+                    Directory.Delete(projectPath, recursive: true);
+                }
+
+                // 2. 从模板项目集合和筛选集合中移除
+                Projects.Remove(SelectedProject);
+                FilteredProjects.Remove(SelectedProject);
+                SelectedProject = null;
+
+                StatusText.Text = "已删除模板项目";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"删除模板项目失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void TestCaseProjectList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -706,16 +978,27 @@ namespace SIAT
         {
             if (SelectedTestCaseProject != null)
             {
-                // 打开项目编辑对话框
-                var editDialog = new TestCaseProjectEditDialog(SelectedTestCaseProject.Project);
-                if (editDialog.ShowDialog() == true)
+                // 未保存的待创建项目：先保存用例创建物理文件夹，再打开编辑器
+                if (SelectedTestCaseProject.Project.IsPendingCreate)
                 {
-                    // 更新项目信息
-                    SelectedTestCaseProject.Name = editDialog.Project.Name;
-                    SelectedTestCaseProject.Description = editDialog.Project.Description;
-                    IsModified = true;
-                    StatusText.Text = $"已更新项目: {SelectedTestCaseProject.Name}";
+                    if (!SaveTestCase())
+                    {
+                        MessageBox.Show("保存用例失败，无法编辑测试项", "错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
                 }
+
+                var projectConfig = new ProjectConfig
+                {
+                    Name = SelectedTestCaseProject.Name,
+                    Description = SelectedTestCaseProject.Description,
+                    ProjectPath = SelectedTestCaseProject.ProjectPath,
+                    CreatedDate = SelectedTestCaseProject.AddedDate,
+                    ModifiedDate = DateTime.Now
+                };
+
+                OpenProjectEditor(projectConfig);
+                StatusText.Text = $"已编辑测试项: {SelectedTestCaseProject.Name}";
             }
         }
 
@@ -756,9 +1039,23 @@ namespace SIAT
             if (SelectedTestCaseProject == null) return;
 
             string projectName = SelectedTestCaseProject.Name;
-            var result = MessageBox.Show($"确定要移除项目 '{projectName}' 吗？", "确认移除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            string projectPath = SelectedTestCaseProject.ProjectPath;
+            var result = MessageBox.Show($"确定要移除项目 '{projectName}' 吗？\n\n这将删除对应的测试项文件夹，不可恢复。", "确认移除", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (result == MessageBoxResult.Yes)
             {
+                // 删除用例独立目录下的测试项文件夹
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(projectPath) && Directory.Exists(projectPath))
+                    {
+                        Directory.Delete(projectPath, recursive: true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"删除测试项文件失败: {ex.Message}", "警告", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+
                 TestCaseProjects.Remove(SelectedTestCaseProject);
                 UpdateProjectIndexes();
                 IsModified = true;
@@ -788,6 +1085,14 @@ namespace SIAT
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            Close();
+        }
+
+        /// <summary>
+        /// 窗口关闭前事件：未保存时提示是否保存（覆盖关闭按钮、X 按钮、ALT+F4 等所有关闭路径）
+        /// </summary>
+        protected override void OnClosing(CancelEventArgs e)
+        {
             if (IsModified)
             {
                 var result = MessageBox.Show("用例已修改，是否保存？", "保存确认", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
@@ -795,39 +1100,63 @@ namespace SIAT
                 {
                     if (!SaveTestCase())
                     {
-                        return; // 保存失败，不关闭窗口
+                        e.Cancel = true; // 保存失败，不关闭窗口
+                        return;
                     }
                 }
                 else if (result == MessageBoxResult.Cancel)
                 {
-                    return; // 取消关闭
+                    e.Cancel = true; // 取消关闭
+                    return;
                 }
             }
-            
             DialogResult = true;
-            Close();
+            base.OnClosing(e);
         }
 
         private bool SaveTestCase()
         {
             try
             {
+                // 保存前：为待创建的测试项生成物理文件夹
+                foreach (var projectItem in TestCaseProjects)
+                {
+                    var proj = projectItem.Project;
+                    if (proj.IsPendingCreate)
+                    {
+                        string destDir;
+                        if (proj.IsNewBlank)
+                        {
+                            // 新建空白测试项
+                            destDir = CreateNewProjectInTestCase(proj.Name, proj.Description, out _);
+                        }
+                        else
+                        {
+                            // 从模板复制
+                            var template = new ProjectConfig { Name = proj.Name, Description = proj.Description, ProjectPath = proj.SourceTemplatePath };
+                            destDir = CopyTemplateToTestCase(template, out _);
+                        }
+                        proj.ProjectPath = destDir;
+                        proj.IsPendingCreate = false;
+                    }
+                }
+
                 // 更新用例配置中的项目列表
                 TestCaseConfig.Projects.Clear();
                 foreach (var projectItem in TestCaseProjects)
                 {
                     TestCaseConfig.Projects.Add(projectItem.Project);
                 }
-                
+
                 TestCaseConfig.ModifiedDate = DateTime.Now;
-                
+
                 XmlHelper.SerializeToFile(TestCaseConfig, _testCasePath);
                 IsModified = false;
                 StatusText.Text = "用例已保存";
-                
+
                 // 显示保存成功提示
                 MessageBox.Show("用例保存成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                
+
                 return true;
             }
             catch (Exception ex)

@@ -330,23 +330,8 @@
                             </StackPanel>
                         </Button>
 
-                        <!-- 项目管理按钮 -->
+                        <!-- 数据管理按钮 -->
                         <Button Grid.Row="0" Grid.Column="2"
-                                x:Name="ProjectManagementButton"
-                                Style="{StaticResource FunctionButtonStyle}" 
-                                Background="{StaticResource ProjectButtonGradient}"
-                                BorderBrush="#16a085"
-                                ToolTip="管理测试项目"
-                                Click="ProjectManagementButton_Click">
-                            <StackPanel>
-                                <TextBlock Text="📋" Style="{StaticResource LargeIconStyle}"/>
-                                <TextBlock Text="测试项管理" Style="{StaticResource IconTextBlockStyle}"/>
-                                <TextBlock Text="管理测试项目和任务" Style="{StaticResource DescriptionTextBlockStyle}"/>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- 待开发按钮 -->
-                        <Button Grid.Row="1" Grid.Column="2"
                                 x:Name="DevelopmentButton"
                                 Style="{StaticResource FunctionButtonStyle}" 
                                 Background="{StaticResource DevelopmentButtonGradient}"

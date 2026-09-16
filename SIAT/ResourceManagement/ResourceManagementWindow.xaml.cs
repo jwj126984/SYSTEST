@@ -143,7 +143,7 @@ namespace SIAT
 
                 // 设备名称和类型由代码定义，设置为只读
                 dialog.DeviceNameTextBox.IsReadOnly = true;
-                dialog.DeviceTypeComboBox.IsEnabled = false;
+                dialog.DeviceTypeComboBox.IsEnabled = true;
 
                 if (dialog.ShowDialog() == true)
                 {

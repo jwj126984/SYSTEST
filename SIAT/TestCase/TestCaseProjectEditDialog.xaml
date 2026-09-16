@@ -82,7 +82,7 @@
         </Grid>
 
         <!-- 项目信息 -->
-        <Grid Grid.Row="2" Margin="0,0,0,15">
+        <Grid Grid.Row="2" Margin="0,0,0,15" x:Name="ProjectInfoPanel">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>

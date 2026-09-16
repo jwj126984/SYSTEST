@@ -158,24 +158,24 @@ namespace SIAT
                 }
             }
 
-            if (ProjectManagementButton != null)
-            {
-                // 系统设置按钮：只有管理人员可以使用
-                ProjectManagementButton.IsEnabled = isManager;
+            //if (ProjectManagementButton != null)
+            //{
+            //    // 系统设置按钮：只有管理人员可以使用
+            //    ProjectManagementButton.IsEnabled = isManager;
 
-                if (!isManager)
-                {
-                    ProjectManagementButton.ToolTip = "只有管理人员可以使用此功能";
-                    ProjectManagementButton.Opacity = 0.6;
-                }
-                else
-                {
-                    ProjectManagementButton.Opacity = 1.0;
-                }
-                // 项目管理按钮：所有人都可以使用
-                ProjectManagementButton.IsEnabled = true;
-                ProjectManagementButton.Opacity = 1.0;
-            }
+            //    if (!isManager)
+            //    {
+            //        ProjectManagementButton.ToolTip = "只有管理人员可以使用此功能";
+            //        ProjectManagementButton.Opacity = 0.6;
+            //    }
+            //    else
+            //    {
+            //        ProjectManagementButton.Opacity = 1.0;
+            //    }
+            //    // 项目管理按钮：所有人都可以使用
+            //    ProjectManagementButton.IsEnabled = true;
+            //    ProjectManagementButton.Opacity = 1.0;
+            //}
 
             if (DevelopmentButton != null)
             {
@@ -389,61 +389,6 @@ namespace SIAT
             }
         }
 
-        // 项目管理按钮点击事件
-        private void ProjectManagementButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (ProjectManagementButton.IsEnabled)
-            {
-                try
-                {
-                    // 隐藏MainWindow
-                    this.Hide();
-                    
-                    // 打开项目操作对话框
-                    var operationDialog = new ProjectOperationDialog
-                    {
-                        Owner = this
-                    };
-                    
-                    if (operationDialog.ShowDialog() == true)
-                    {
-                        // 根据用户选择的操作执行相应的功能
-                        switch (operationDialog.SelectedOperation)
-                        {
-                            case ProjectOperationDialog.ProjectOperation.NewProject:
-                                // 打开新建项目窗口
-                                var newProjectWindow = new NewProjectWindow
-                                {
-                                    Owner = this
-                                };
-                                newProjectWindow.ShowDialog();
-                                break;
-                                
-                            case ProjectOperationDialog.ProjectOperation.OpenProject:
-                                // 打开打开项目窗口
-                                var openProjectWindow = new OpenProjectWindow
-                                {
-                                    Owner = this
-                                };
-                                openProjectWindow.ShowDialog();
-                                break;
-                        }
-                    }
-                    
-                    // 所有窗口操作完成后显示MainWindow
-                    this.Show();
-                }
-                catch (Exception ex)
-                {
-                    // 发生异常时确保MainWindow显示
-                    this.Show();
-                    
-                    MessageBox.Show($"打开项目管理失败: {ex.Message}", "错误",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
-
         // 待开发按钮点击事件
         private void DevelopmentButton_Click(object sender, RoutedEventArgs e)
         {
@@ -558,10 +503,6 @@ namespace SIAT
                     SystemSettingsButton_Click(this, new RoutedEventArgs());
                 }
                 else if (e.Key == Key.D5 || e.Key == Key.NumPad5)
-                {
-                    ProjectManagementButton_Click(this, new RoutedEventArgs());
-                }
-                else if (e.Key == Key.D6 || e.Key == Key.NumPad6)
                 {
                     DevelopmentButton_Click(this, new RoutedEventArgs());
                 }

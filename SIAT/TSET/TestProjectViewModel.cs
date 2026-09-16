@@ -116,6 +116,7 @@ namespace SIAT.TSET
                             Description = v.Description,
                             QualifiedValue = v.QualifiedValue,
                             Unit = v.Unit,
+                            IsRange = v.IsRange,
                             ActualValue = v.ActualValue,
                             Status = v.Status,
                             TestTime = v.TestTime,
@@ -150,6 +151,7 @@ namespace SIAT.TSET
                             Description = projectVar?.Description ?? pv.Description,
                             QualifiedValue = projectVar?.QualifiedValue ?? pv.QualifiedValue,
                             Unit = projectVar?.Unit ?? pv.Unit,
+                            IsRange = projectVar?.IsRange ?? false,
                             ActualValue = stepCopy.ActualValue,
                             Status = stepCopy.Status,
                             Duration = stepCopy.Duration

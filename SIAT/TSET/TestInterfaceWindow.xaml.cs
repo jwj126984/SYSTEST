@@ -435,6 +435,7 @@ namespace SIAT
             }
         }
 
+
         private void UpdateProgressBar()
         {
             try
@@ -628,7 +629,7 @@ namespace SIAT
                 AddLog("正在关闭设备连接...", "信息");
                 await DisconnectAllDevicesAsync();
             }
-
+            DestroyCornerAnimationTask();
             SaveStatistics();
             AddLog("应用程序关闭，统计信息已保存", "系统");
 
@@ -648,13 +649,13 @@ namespace SIAT
             {
                 WindowState = WindowState.Maximized;
                 if (WindowMaximizeButton != null)
-                    WindowMaximizeButton.Content = "🗖";
+                    WindowMaximizeButton.Content = "🗗";
             }
             else
             {
                 WindowState = WindowState.Normal;
                 if (WindowMaximizeButton != null)
-                    WindowMaximizeButton.Content = "🗗";
+                    WindowMaximizeButton.Content = "🗖";
             }
         }
 
@@ -683,6 +684,7 @@ namespace SIAT
                 MessageBox.Show("测试正在进行中", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+            
 
 
             // 检查是否已加载用例文件
@@ -711,6 +713,113 @@ namespace SIAT
 
             StartTesting();
         }
+
+        #region 界面右下角动画
+        private CancellationTokenSource _animationCts;
+        private int _animIndex = 0; //移到类级别，去掉lambda内static局部变量bug
+
+        /// <summary>只调用一次，启动常驻动画检测任务，由_isTesting自动控制动画播放/暂停</summary>
+        private void InitCornerAnimationTask()
+        {
+            if (_animationCts != null && !_animationCts.IsCancellationRequested)
+                return;
+            _animationCts = new CancellationTokenSource();
+            var token = _animationCts.Token;
+
+            PlayTaskRun(() =>
+            {
+                if (_isTesting)
+                {
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        if (_animIndex % 3 == 0)
+                        {
+                            border2.Visibility = Visibility.Hidden;
+                            border4.Visibility = Visibility.Hidden;
+                            border1.Visibility = Visibility.Hidden;
+                            border5.Visibility = Visibility.Hidden;
+                        }
+                        else if (_animIndex % 3 == 1)
+                        {
+                            border2.Visibility = Visibility.Visible;
+                            border4.Visibility = Visibility.Visible;
+                        }
+                        else if (_animIndex % 3 == 2)
+                        {
+                            border1.Visibility = Visibility.Visible;
+                            border5.Visibility = Visibility.Visible;
+                        }
+                    });
+                    _animIndex++;
+                }
+                else
+                {
+                    _animIndex = 0;
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        border2.Visibility = Visibility.Hidden;
+                        border4.Visibility = Visibility.Hidden;
+                        border1.Visibility = Visibility.Hidden;
+                        border5.Visibility = Visibility.Hidden;
+                    });
+                }
+            }, 500, "动画线程", token);
+        }
+
+        /// <summary>销毁动画后台任务，窗口关闭调用</summary>
+        private void DestroyCornerAnimationTask()
+        {
+            if (_animationCts != null)
+            {
+                _animationCts.Cancel();
+                _animationCts.Dispose();
+                _animationCts = null;
+            }
+            this.Dispatcher.Invoke(() =>
+            {
+                border2.Visibility = Visibility.Hidden;
+                border4.Visibility = Visibility.Hidden;
+                border1.Visibility = Visibility.Hidden;
+                border5.Visibility = Visibility.Hidden;
+            });
+        }
+        #endregion
+
+
+
+        #region 创建与关闭死循环任务
+        /// <summary>
+        /// 创建循环后台任务，支持CancellationToken取消，延时可中断
+        /// </summary>
+        /// <param name="action">循环执行逻辑</param>
+        /// <param name="time">间隔ms</param>
+        /// <param name="taskDes">任务描述</param>
+        /// <param name="token">取消令牌</param>
+        /// <returns></returns>
+        public static Task PlayTaskRun(Action action, int time, string taskDes = "", CancellationToken token = default)
+        {
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    while (!token.IsCancellationRequested)
+                    {
+                        action?.Invoke();
+                        await Task.Delay(time, token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    //正常取消，忽略
+                }
+                catch (Exception ex)
+                {
+                    //业务异常日志，防止循环卡死
+                }
+            }, token);
+        }
+        #endregion
+
 
         /// <summary>
         /// 工装流程启动测试（跳过UI确认，直接使用已扫描的条码）
@@ -1158,7 +1267,14 @@ namespace SIAT
                 // 项目添加到界面时（AddTestItem），TestProjectViewModel会深拷贝步骤，因此此处更新step即可
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    step.Status = result.IsSuccess ? TestStepStatus.Passed : TestStepStatus.Failed;
+                    // 变量显示步骤：根据合格值/范围判断 PASS/FAIL，而非简单用 result.IsSuccess
+                    bool isPass = result.IsSuccess;
+                    if (string.Equals(step.Name, "变量显示", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isPass = EvaluateQualifiedValue(step, result.ActualValue);
+                    }
+
+                    step.Status = isPass ? TestStepStatus.Passed : TestStepStatus.Failed;
                     step.ActualValue = result.ActualValue;
                     step.Duration = result.Duration;
 
@@ -1173,6 +1289,12 @@ namespace SIAT
                             stepInProjects.Duration = step.Duration;
                             break;
                         }
+                    }
+
+                    // 变量显示步骤：同步更新 DisplayVariables 中的对应项(实测值/单位/PASS-FAIL)
+                    if (string.Equals(step.Name, "变量显示", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SyncDisplayVariable(step, isPass);
                     }
                 });
 
@@ -1385,22 +1507,22 @@ namespace SIAT
         {
             try
             {
-                var openFileDialog = new Microsoft.Win32.OpenFileDialog
+                // 弹出独立的用例选择界面，双击或点击打开确认选择
+                var selectionWindow = new TestCaseSelectionWindow
                 {
-                    Filter = TestCaseManager.GetTestCaseFilter(),
-                    Title = "选择测试用例文件",
-                    Multiselect = false
+                    Owner = this
                 };
 
-                if (openFileDialog.ShowDialog() == true)
+                if (selectionWindow.ShowDialog() == true && !string.IsNullOrEmpty(selectionWindow.SelectedTestCasePath))
                 {
-                    LoadTestCaseFile(openFileDialog.FileName);
+                    LoadTestCaseFile(selectionWindow.SelectedTestCasePath);
+                    InitCornerAnimationTask();
                 }
             }
             catch (Exception ex)
             {
                 AddLog($"选择用例文件失败: {ex.Message}", "错误");
-                MessageBox.Show($"选择用例文件失败: {ex.Message}", "错误", 
+                MessageBox.Show($"选择用例文件失败: {ex.Message}", "错误",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -1704,7 +1826,7 @@ namespace SIAT
             if (ModifyStatsButton != null)
             {
                 ModifyStatsButton.Content = "保存";
-                ModifyStatsButton.Style = (Style)FindResource("SuccessButtonStyle");
+                ModifyStatsButton.Style = (Style)FindResource("SuccessSmallButtonStyle");
             }
 
            
@@ -1729,7 +1851,7 @@ namespace SIAT
             if (ModifyStatsButton != null)
             {
                 ModifyStatsButton.Content = "修改";
-                ModifyStatsButton.Style = (Style)FindResource("PrimaryButtonStyle");
+                ModifyStatsButton.Style = (Style)FindResource("SmallButtonStyle");
             }
 
           
@@ -2028,6 +2150,91 @@ namespace SIAT
             catch (Exception ex)
             {
                 AddLog($"更新变量值失败: {ex.Message}", "错误");
+            }
+        }
+
+        /// <summary>
+        /// 从"变量显示"步骤的输入绑定中获取绑定的变量名
+        /// </summary>
+        private string GetBoundVariableName(TestStepConfig step)
+        {
+            var binding = step.InputBindings?.FirstOrDefault(b =>
+                string.Equals(b.Name, "Variable", StringComparison.OrdinalIgnoreCase));
+            return binding?.SelectedVariable?.VariableName ?? string.Empty;
+        }
+
+        /// <summary>
+        /// 根据合格值或合格范围判断实测值是否合格
+        /// </summary>
+        private bool EvaluateQualifiedValue(TestStepConfig step, string actualValue)
+        {
+            string varName = GetBoundVariableName(step);
+            if (string.IsNullOrWhiteSpace(varName)) return true;
+
+            // 从已加载项目中查找变量定义（获取 QualifiedValue/IsRange）
+            string qualifiedValue = string.Empty;
+            bool isRange = false;
+            foreach (var projectConfig in _loadedProjects)
+            {
+                var var = projectConfig.Variables.FirstOrDefault(v =>
+                    string.Equals(v.Name, varName, StringComparison.OrdinalIgnoreCase));
+                if (var != null)
+                {
+                    qualifiedValue = var.QualifiedValue ?? string.Empty;
+                    isRange = var.IsRange;
+                    break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(qualifiedValue))
+                return true; // 未设置合格值则默认通过
+
+            if (string.IsNullOrWhiteSpace(actualValue))
+                return false;
+
+            if (isRange)
+            {
+                // 合格范围格式: "min - max"
+                var parts = qualifiedValue.Split(new[] { " - ", "-" }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2 &&
+                    double.TryParse(parts[0].Trim(), out double min) &&
+                    double.TryParse(parts[1].Trim(), out double max) &&
+                    double.TryParse(actualValue.Trim(), out double actual))
+                {
+                    return actual >= min && actual <= max;
+                }
+                return false;
+            }
+            else
+            {
+                // 单个合格值：优先数值比较，其次字符串比较
+                if (double.TryParse(qualifiedValue.Trim(), out double qVal) &&
+                    double.TryParse(actualValue.Trim(), out double aVal))
+                {
+                    return Math.Abs(aVal - qVal) < 1e-9;
+                }
+                return string.Equals(actualValue.Trim(), qualifiedValue.Trim(), StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
+        /// 同步更新 DisplayVariables 中对应变量的实测值、单位和 PASS/FAIL 状态
+        /// </summary>
+        private void SyncDisplayVariable(TestStepConfig step, bool isPass)
+        {
+            string varName = GetBoundVariableName(step);
+            if (string.IsNullOrWhiteSpace(varName)) return;
+
+            foreach (var project in _testProjects)
+            {
+                var dv = project.DisplayVariables.FirstOrDefault(d =>
+                    string.Equals(d.Name, varName, StringComparison.OrdinalIgnoreCase));
+                if (dv != null)
+                {
+                    dv.ActualValue = step.ActualValue;
+                    dv.Status = isPass ? TestStepStatus.Passed : TestStepStatus.Failed;
+                    break;
+                }
             }
         }
 
@@ -2740,15 +2947,7 @@ namespace SIAT
         
         
         
-        /// <summary>
-        /// 检查是否可以发送指令
-        /// </summary>
-        /// <returns>是否可以发送指令</returns>
-        private bool CanSendCommand()
-        {
-            TimeSpan timeSinceLastCommand = DateTime.Now - _lastCommandTime;
-            return timeSinceLastCommand.TotalMilliseconds >= CommandIntervalMs;
-        }
+        
         
         /// <summary>
         /// 发送下压指令
